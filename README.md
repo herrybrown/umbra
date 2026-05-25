@@ -63,7 +63,6 @@ Add Arc Testnet to your wallet:
 git clone https://github.com/herrybrown/umbra.git
 cd umbra
 npm install
-echo "NEXT_PUBLIC_UMBRA_ADDRESS=<deployed-contract-address>" > .env.local
 npm run dev
 ```
 
@@ -79,7 +78,7 @@ Addresses on Arc Testnet:
 
 - USDC: `0x3600000000000000000000000000000000000000`
 - EURC: `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
-- UmbraOTC: set in `.env.local` as `NEXT_PUBLIC_UMBRA_ADDRESS`
+- UmbraOTC: `0xAb6c00a09136435fFB97A427b7cfcda8895a1a45` (override with `NEXT_PUBLIC_UMBRA_ADDRESS` if you redeploy)
 
 To deploy the contract yourself:
 
