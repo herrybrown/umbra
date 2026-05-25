@@ -4,14 +4,14 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
-  useChainId,
+  useAccount,
   useSwitchChain,
 } from "wagmi";
 import { UMBRA_OTC_ABI, UMBRA_OTC_ADDRESS, ERC20_ABI, USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 import { arcTestnet } from "@/lib/chains";
 
 function useEnsureArcChain() {
-  const chainId = useChainId();
+  const { chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   return async () => {
     if (chainId !== arcTestnet.id) {

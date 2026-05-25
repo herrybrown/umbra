@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/chains";
 
 export function ChainGuard() {
-  const { isConnected } = useAccount();
-  const chainId = useChainId();
+  const { isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
   const lastAttemptedRef = useRef<number | null>(null);
 
@@ -19,6 +18,7 @@ export function ChainGuard() {
       lastAttemptedRef.current = null;
       return;
     }
+    if (chainId === undefined) return;
     if (lastAttemptedRef.current === chainId) return;
     lastAttemptedRef.current = chainId;
     switchChain({ chainId: arcTestnet.id });
