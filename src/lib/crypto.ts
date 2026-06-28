@@ -33,9 +33,11 @@ export function viewKeyHash(viewKey: `0x${string}`): `0x${string}` {
 
 export interface TradeDetails {
   amount: string; // bigint as string
+  bidAmount?: string; // expected taker amount, bigint as string
   institution: string;
   ref: string;
-  currency: string; // "USDC" or "EURC"
+  currency: string; // maker token symbol
+  takerCurrency?: string; // taker token symbol
   ts: number;
 }
 

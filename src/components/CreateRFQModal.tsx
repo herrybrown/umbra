@@ -14,6 +14,11 @@ import { parseAmount, formatAmount } from "@/lib/utils";
 import { useCreateRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
 import { USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 
+const TOKENS = [
+  { address: USDC_ADDRESS, symbol: "USDC" },
+  { address: EURC_ADDRESS, symbol: "EURC" },
+] as const;
+
 interface Props {
   onClose: () => void;
   onSuccess?: () => void;
@@ -22,8 +27,10 @@ interface Props {
 export function CreateRFQModal({ onClose, onSuccess }: Props) {
   const { address } = useAccount();
 
-  const [pair, setPair] = useState<0 | 1>(0);
-  const [amountStr, setAmountStr] = useState("");
+  const [makerToken, setMakerToken] = useState<`0x${string}`>(USDC_ADDRESS);
+  const [takerToken, setTakerToken] = useState<`0x${string}`>(EURC_ADDRESS);
+  const [makerAmountStr, setMakerAmountStr] = useState("");
+  const [bidAmountStr, setBidAmountStr] = useState("");
   const [institution, setInstitution] = useState("");
   const [rfqRef, setRfqRef] = useState("");
   const [preferredTaker, setPreferredTaker] = useState("");
@@ -32,13 +39,27 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
   const [error, setError] = useState("");
   const [kitCopy, setKitCopy] = useState<{ viewKey: string; salt: string; amount: string } | null>(null);
 
-  const sendToken = pair === 0 ? USDC_ADDRESS : EURC_ADDRESS;
-  const { data: allowance } = useTokenAllowance(sendToken, address);
-  const { approve, isPending: isApproving } = useApproveToken();
-  const { create, isPending: isCreating, isConfirming } = useCreateRFQ();
+  const pair: 0 | 1 = makerToken === USDC_ADDRESS ? 0 : 1;
+  const makerSymbol = TOKENS.find((t) => t.address === makerToken)?.symbol ?? "USDC";
+  const takerSymbol = TOKENS.find((t) => t.address === takerToken)?.symbol ?? "EURC";
 
-  const parsedAmount = amountStr ? parseAmount(amountStr) : 0n;
-  const needsApproval = (allowance ?? 0n) < parsedAmount || (allowance ?? 0n) === 0n;
+  function onMakerTokenChange(addr: `0x${string}`) {
+    setMakerToken(addr);
+    setTakerToken(addr === USDC_ADDRESS ? EURC_ADDRESS : USDC_ADDRESS);
+  }
+
+  function onTakerTokenChange(addr: `0x${string}`) {
+    setTakerToken(addr);
+    setMakerToken(addr === USDC_ADDRESS ? EURC_ADDRESS : USDC_ADDRESS);
+  }
+
+  const { data: allowance } = useTokenAllowance(makerToken, address);
+  const { approve } = useApproveToken();
+  const { create, isConfirming } = useCreateRFQ();
+
+  const parsedMakerAmount = makerAmountStr ? parseAmount(makerAmountStr) : 0n;
+  const parsedBidAmount = bidAmountStr ? parseAmount(bidAmountStr) : 0n;
+  const needsApproval = (allowance ?? 0n) < parsedMakerAmount || (allowance ?? 0n) === 0n;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,22 +69,24 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     try {
       if (needsApproval) {
         setStep("approving");
-        await approve(sendToken);
+        await approve(makerToken);
       }
 
       setStep("creating");
 
       const salt = generateSalt();
       const viewKey = generateViewKey();
-      const commitment = commitAmount(parsedAmount, salt);
+      const commitment = commitAmount(parsedMakerAmount, salt);
       const vkHash = hashViewKey(viewKey);
 
       const encrypted = await encryptDetails(
         {
-          amount: parsedAmount.toString(),
+          amount: parsedMakerAmount.toString(),
+          bidAmount: parsedBidAmount > 0n ? parsedBidAmount.toString() : undefined,
           institution,
           ref: rfqRef,
-          currency: pair === 0 ? "USDC" : "EURC",
+          currency: makerSymbol,
+          takerCurrency: takerSymbol,
           ts: Math.floor(Date.now() / 1000),
         },
         viewKey
@@ -81,17 +104,16 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
         rfqRef,
       });
 
-      // Save settlement kit for later use
-      const nextId = Date.now(); // approximate — will be overwritten on re-load
+      const nextId = Date.now();
       saveKit({
         tradeId: nextId,
-        amount: parsedAmount.toString(),
+        amount: parsedMakerAmount.toString(),
         salt,
         viewKey,
         role: "maker",
       });
 
-      setKitCopy({ viewKey, salt, amount: parsedAmount.toString() });
+      setKitCopy({ viewKey, salt, amount: parsedMakerAmount.toString() });
       setStep("done");
       onSuccess?.();
     } catch (err: unknown) {
@@ -137,45 +159,69 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Pair */}
-        <div>
-          <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
-            Direction
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { val: 0, label: "Send USDC → Receive EURC" },
-              { val: 1, label: "Send EURC → Receive USDC" },
-            ].map(({ val, label }) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setPair(val as 0 | 1)}
-                className={`py-2 rounded-lg border text-sm transition-colors ${
-                  pair === val
-                    ? "border-umbra-purple bg-umbra-purple/10 text-umbra-glow"
-                    : "border-arc-border text-arc-muted hover:border-arc-border/80"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        {/* Token pair */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
+              You send
+            </label>
+            <select
+              value={makerToken}
+              onChange={(e) => onMakerTokenChange(e.target.value as `0x${string}`)}
+              className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-umbra-purple"
+            >
+              {TOKENS.map((t) => (
+                <option key={t.address} value={t.address}>
+                  {t.symbol}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
+              You receive
+            </label>
+            <select
+              value={takerToken}
+              onChange={(e) => onTakerTokenChange(e.target.value as `0x${string}`)}
+              className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-umbra-purple"
+            >
+              {TOKENS.map((t) => (
+                <option key={t.address} value={t.address}>
+                  {t.symbol}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Amount */}
-        <div>
-          <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
-            Amount ({pair === 0 ? "USDC" : "EURC"})
-          </label>
-          <input
-            type="text"
-            placeholder="1000000.00"
-            value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
-            required
-            className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-umbra-purple"
-          />
+        {/* Amounts */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
+              Amount ({makerSymbol})
+            </label>
+            <input
+              type="text"
+              placeholder="0.00"
+              value={makerAmountStr}
+              onChange={(e) => setMakerAmountStr(e.target.value)}
+              required
+              className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-umbra-purple"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
+              Bid ({takerSymbol})
+            </label>
+            <input
+              type="text"
+              placeholder="0.00"
+              value={bidAmountStr}
+              onChange={(e) => setBidAmountStr(e.target.value)}
+              className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-umbra-purple"
+            />
+          </div>
         </div>
 
         <div>
@@ -192,7 +238,6 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
           />
         </div>
 
-        {/* Institution */}
         <div>
           <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
             Your firm name
@@ -207,7 +252,6 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
           />
         </div>
 
-        {/* Expiry */}
         <div>
           <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
             Expiry (hours)
@@ -225,7 +269,6 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
           </select>
         </div>
 
-        {/* Preferred taker (optional) */}
         <div>
           <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
             Specific counterparty (optional)
@@ -247,7 +290,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
 
         <button
           type="submit"
-          disabled={step !== "idle" || !parsedAmount}
+          disabled={step !== "idle" || !parsedMakerAmount}
           className="w-full py-2.5 rounded-lg bg-umbra-purple hover:bg-umbra-violet disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white font-medium text-sm"
         >
           {step === "approving"
