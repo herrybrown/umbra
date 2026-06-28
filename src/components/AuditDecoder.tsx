@@ -150,20 +150,13 @@ export function AuditDecoder() {
             )}
           </div>
 
-          {/* Commitment fingerprints */}
+          {/* View key fingerprint */}
           <div className="mt-4 p-3 rounded-lg bg-arc-dark border border-arc-border/50">
             <div className="text-[10px] text-arc-muted uppercase tracking-wider mb-2">
               Onchain record
             </div>
-            <div className="space-y-1">
-              <div className="font-mono text-[10px] text-arc-muted break-all">
-                <span className="text-umbra-glow">M:</span> {trade.makerCommitment}
-              </div>
-              {trade.takerCommitment !== "0x0000000000000000000000000000000000000000000000000000000000000000" && (
-                <div className="font-mono text-[10px] text-arc-muted break-all">
-                  <span className="text-umbra-glow">T:</span> {trade.takerCommitment}
-                </div>
-              )}
+            <div className="font-mono text-[10px] text-arc-muted break-all">
+              <span className="text-umbra-glow">VK:</span> {trade.viewKeyHash}
             </div>
           </div>
         </div>

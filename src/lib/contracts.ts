@@ -1,5 +1,5 @@
 export const UMBRA_OTC_ADDRESS = (process.env.NEXT_PUBLIC_UMBRA_ADDRESS ??
-  "0xAb6c00a09136435fFB97A427b7cfcda8895a1a45") as `0x${string}`;
+  "0x3f90743fbcFeC418A6E5aD3bc822Fc05C521DFfD") as `0x${string}`;
 
 export const USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000" as `0x${string}`;
@@ -51,13 +51,11 @@ export const UMBRA_OTC_ABI = [
           { name: "status", type: "uint8" },
           { name: "expiresAt", type: "uint64" },
           { name: "createdAt", type: "uint64" },
-          { name: "makerCommitment", type: "bytes32" },
-          { name: "takerCommitment", type: "bytes32" },
+          { name: "makerAmount", type: "uint256" },
+          { name: "takerAmount", type: "uint256" },
           { name: "makerEncrypted", type: "bytes" },
           { name: "takerEncrypted", type: "bytes" },
           { name: "viewKeyHash", type: "bytes32" },
-          { name: "makerAmount", type: "uint256" },
-          { name: "takerAmount", type: "uint256" },
           { name: "rfqRef", type: "string" },
         ],
       },
@@ -100,7 +98,7 @@ export const UMBRA_OTC_ABI = [
   {
     inputs: [
       { name: "pair", type: "uint8" },
-      { name: "commitment", type: "bytes32" },
+      { name: "makerAmount", type: "uint256" },
       { name: "encrypted", type: "bytes" },
       { name: "viewKeyHash", type: "bytes32" },
       { name: "preferredTaker", type: "address" },
@@ -115,7 +113,7 @@ export const UMBRA_OTC_ABI = [
   {
     inputs: [
       { name: "id", type: "uint256" },
-      { name: "takerCommitment", type: "bytes32" },
+      { name: "takerAmount", type: "uint256" },
       { name: "takerEncrypted", type: "bytes" },
     ],
     name: "matchRFQ",
@@ -124,13 +122,7 @@ export const UMBRA_OTC_ABI = [
     type: "function",
   },
   {
-    inputs: [
-      { name: "id", type: "uint256" },
-      { name: "makerAmount", type: "uint256" },
-      { name: "makerSalt", type: "bytes32" },
-      { name: "takerAmount", type: "uint256" },
-      { name: "takerSalt", type: "bytes32" },
-    ],
+    inputs: [{ name: "id", type: "uint256" }],
     name: "settle",
     outputs: [],
     stateMutability: "nonpayable",

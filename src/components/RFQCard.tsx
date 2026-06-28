@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useAccount } from "wagmi";
 import {
   formatAmount,
@@ -23,11 +22,6 @@ interface Trade {
   status: number;
   expiresAt: bigint;
   createdAt: bigint;
-  makerCommitment: `0x${string}`;
-  takerCommitment: `0x${string}`;
-  makerEncrypted: `0x${string}`;
-  takerEncrypted: `0x${string}`;
-  viewKeyHash: `0x${string}`;
   makerAmount: bigint;
   takerAmount: bigint;
   rfqRef: string;
@@ -44,7 +38,6 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
   const { address } = useAccount();
   const isMaker = address?.toLowerCase() === trade.maker.toLowerCase();
   const isTaker = address?.toLowerCase() === trade.taker.toLowerCase();
-  const isParty = isMaker || isTaker;
   const isOpen = trade.status === 0;
   const isMatched = trade.status === 1;
   const isSettled = trade.status === 2;
@@ -103,39 +96,23 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
         )}
       </div>
 
-      {/* Confidential amounts */}
+      {/* Escrowed amounts */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
           <div className="text-xs text-arc-muted mb-1">
             Maker sends ({makerTokenLabel(trade.pair)})
           </div>
-          {isSettled ? (
-            <div className="font-mono text-sm text-white">
-              {formatAmount(trade.makerAmount)}
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-umbra-purple animate-pulse" />
-              <span className="text-xs font-mono text-umbra-glow">
-                CONFIDENTIAL
-              </span>
-            </div>
-          )}
+          <div className="font-mono text-sm text-white">
+            {formatAmount(trade.makerAmount)}
+          </div>
         </div>
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
           <div className="text-xs text-arc-muted mb-1">
             Taker sends ({takerTokenLabel(trade.pair)})
           </div>
-          {isSettled ? (
+          {isMatched || isSettled ? (
             <div className="font-mono text-sm text-white">
               {formatAmount(trade.takerAmount)}
-            </div>
-          ) : isMatched ? (
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-umbra-purple animate-pulse" />
-              <span className="text-xs font-mono text-umbra-glow">
-                CONFIDENTIAL
-              </span>
             </div>
           ) : (
             <span className="text-xs text-arc-muted font-mono">Awaiting taker</span>
@@ -168,20 +145,6 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
         </div>
       </div>
 
-      {(isMatched || isSettled) && (
-        <div className="mb-4 p-2 rounded bg-arc-dark border border-arc-border/30">
-          <div className="text-[10px] text-arc-muted mb-1 uppercase tracking-wider">
-            Trade record
-          </div>
-          <div className="font-mono text-[10px] text-arc-muted truncate">
-            M: {trade.makerCommitment.slice(0, 20)}…
-          </div>
-          <div className="font-mono text-[10px] text-arc-muted truncate">
-            T: {trade.takerCommitment.slice(0, 20)}…
-          </div>
-        </div>
-      )}
-
       {/* Actions */}
       <div className="flex gap-2">
         {isOpen && !isMaker && onMatch && (
@@ -192,7 +155,7 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             Take Quote
           </button>
         )}
-        {isMatched && isParty && onSettle && (
+        {isMatched && isMaker && onSettle && (
           <button
             onClick={onSettle}
             className="flex-1 py-2 rounded-lg bg-settled/20 hover:bg-settled/30 border border-settled/30 transition-colors text-sm font-medium text-settled"
@@ -200,7 +163,7 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             Settle Trade
           </button>
         )}
-        {isActive && isParty && onCancel && (
+        {isActive && isMaker && onCancel && (
           <button
             onClick={onCancel}
             className="px-4 py-2 rounded-lg border border-arc-border hover:border-danger/50 hover:text-danger transition-colors text-sm text-arc-muted"
@@ -208,9 +171,14 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             Cancel
           </button>
         )}
+        {isMatched && isTaker && (
+          <div className="flex-1 text-center text-xs text-arc-muted py-2">
+            Tokens locked — waiting for maker to settle
+          </div>
+        )}
         {!isActive && (
           <div className="flex-1 text-center text-xs text-arc-muted py-2">
-            {isSettled ? "Trade settled — amounts revealed above" : "No further action"}
+            {isSettled ? "Trade settled" : "No further action"}
           </div>
         )}
       </div>

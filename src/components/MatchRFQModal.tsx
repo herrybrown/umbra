@@ -3,12 +3,8 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import {
-  generateSalt,
   generateViewKey,
-  commitAmount,
-  viewKeyHash as hashViewKey,
   encryptDetails,
-  saveKit,
 } from "@/lib/crypto";
 import { parseAmount, formatAmount, pairLabel, takerTokenLabel } from "@/lib/utils";
 import { useMatchRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
@@ -19,6 +15,7 @@ interface Trade {
   pair: number;
   rfqRef: string;
   maker: `0x${string}`;
+  makerAmount: bigint;
   viewKeyHash: `0x${string}`;
 }
 
@@ -35,18 +32,18 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
   const [institution, setInstitution] = useState("");
   const [step, setStep] = useState<"idle" | "approving" | "matching" | "done">("idle");
   const [error, setError] = useState("");
-  const [kitCopy, setKitCopy] = useState<{ salt: string; amount: string; viewKey: string } | null>(null);
 
   // Taker sends the opposite token of maker
   const sendToken = trade.pair === 0 ? EURC_ADDRESS : USDC_ADDRESS;
   const sendSymbol = takerTokenLabel(trade.pair);
+  const makerSymbol = trade.pair === 0 ? "USDC" : "EURC";
 
   const { data: allowance } = useTokenAllowance(sendToken, address);
   const { approve } = useApproveToken();
-  const { match, isPending, isConfirming } = useMatchRFQ();
+  const { match, isConfirming } = useMatchRFQ();
 
   const parsedAmount = takerAmountStr ? parseAmount(takerAmountStr) : 0n;
-  const needsApproval = (allowance ?? 0n) < parsedAmount || (allowance ?? 0n) === 0n;
+  const needsApproval = (allowance ?? 0n) < parsedAmount;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,10 +58,7 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
 
       setStep("matching");
 
-      const salt = generateSalt();
-      // Taker uses the maker's viewKeyHash for shared audit trail
-      const takerViewKey = generateViewKey();
-      const commitment = commitAmount(parsedAmount, salt);
+      const viewKey = generateViewKey();
 
       const encrypted = await encryptDetails(
         {
@@ -74,24 +68,15 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
           currency: sendSymbol,
           ts: Math.floor(Date.now() / 1000),
         },
-        takerViewKey
+        viewKey
       );
 
       await match({
         id: trade.id,
-        takerCommitment: commitment,
+        takerAmount: parsedAmount,
         takerEncrypted: encrypted as `0x${string}`,
       });
 
-      saveKit({
-        tradeId: Number(trade.id),
-        amount: parsedAmount.toString(),
-        salt,
-        viewKey: takerViewKey,
-        role: "taker",
-      });
-
-      setKitCopy({ salt, amount: parsedAmount.toString(), viewKey: takerViewKey });
       setStep("done");
       onSuccess?.();
     } catch (err: unknown) {
@@ -101,21 +86,27 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
     }
   }
 
-  if (step === "done" && kitCopy) {
+  if (step === "done") {
     return (
       <Modal onClose={onClose}>
         <h2 className="text-lg font-semibold text-white mb-1">Quote matched</h2>
         <p className="text-sm text-arc-muted mb-5">
-          Share these with the other party. You will both need them to complete the trade.
+          Your tokens are locked in escrow. The maker will settle the trade.
         </p>
 
-        <div className="space-y-3 mb-6">
-          <KitField label="Settlement code (share this with the maker)" value={kitCopy.salt} />
-          <KitField label="Your amount" value={formatAmount(BigInt(kitCopy.amount))} />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
+            <div className="text-xs text-arc-muted mb-1">You locked ({sendSymbol})</div>
+            <div className="font-mono text-sm text-white">{formatAmount(parsedAmount)}</div>
+          </div>
+          <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
+            <div className="text-xs text-arc-muted mb-1">You receive ({makerSymbol})</div>
+            <div className="font-mono text-sm text-white">{formatAmount(trade.makerAmount)}</div>
+          </div>
         </div>
 
         <div className="p-3 rounded-lg bg-matched/10 border border-matched/30 text-sm text-matched mb-5">
-          Share your settlement code and amount with the maker. Either of you can then settle the trade.
+          Waiting for the maker to settle. Once they do, tokens will be swapped automatically.
         </div>
 
         <button
@@ -135,25 +126,27 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
         Trade #{trade.id.toString()} · {pairLabel(trade.pair)}
       </div>
       <p className="text-sm text-arc-muted mb-5">
-        Enter the amount you will send ({sendSymbol}). The size stays hidden until both sides settle.
+        Enter the amount you will send ({sendSymbol}). Your tokens will be locked in escrow immediately.
       </p>
+
+      <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3 mb-4">
+        <div className="text-xs text-arc-muted mb-1">Maker is sending ({makerSymbol})</div>
+        <div className="font-mono text-sm text-white">{formatAmount(trade.makerAmount)}</div>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
-            Amount you send ({sendSymbol})
+            Your amount ({sendSymbol})
           </label>
           <input
             type="text"
-            placeholder="920000.00"
+            placeholder="0.00"
             value={takerAmountStr}
             onChange={(e) => setTakerAmountStr(e.target.value)}
             required
             className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-umbra-purple"
           />
-          <p className="text-[11px] text-arc-muted mt-1">
-            This should match the rate you agreed with the maker.
-          </p>
         </div>
 
         <div>
@@ -184,7 +177,7 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
           {step === "approving"
             ? "Approving… (confirm in wallet)"
             : step === "matching" || isConfirming
-            ? "Taking quote… (confirm in wallet)"
+            ? "Locking tokens… (confirm in wallet)"
             : needsApproval
             ? `Approve ${sendSymbol} & Take`
             : "Take Quote"}
@@ -205,31 +198,6 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
           ✕
         </button>
         {children}
-      </div>
-    </div>
-  );
-}
-
-function KitField({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-  return (
-    <div>
-      <div className="text-xs text-arc-muted mb-1">{label}</div>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 text-xs font-mono text-umbra-glow bg-arc-dark border border-arc-border rounded p-2 truncate">
-          {value}
-        </code>
-        <button
-          onClick={copy}
-          className="shrink-0 text-xs text-arc-muted hover:text-white transition-colors px-2 py-1 border border-arc-border rounded"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
       </div>
     </div>
   );

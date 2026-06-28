@@ -3,12 +3,9 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import {
-  generateSalt,
   generateViewKey,
-  commitAmount,
   viewKeyHash as hashViewKey,
   encryptDetails,
-  saveKit,
 } from "@/lib/crypto";
 import { parseAmount, formatAmount } from "@/lib/utils";
 import { useCreateRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
@@ -37,7 +34,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
   const [expiryHours, setExpiryHours] = useState("4");
   const [step, setStep] = useState<"idle" | "approving" | "creating" | "done">("idle");
   const [error, setError] = useState("");
-  const [kitCopy, setKitCopy] = useState<{ viewKey: string; salt: string; amount: string } | null>(null);
+  const [viewKeyCopy, setViewKeyCopy] = useState<string | null>(null);
 
   const pair: 0 | 1 = makerToken === USDC_ADDRESS ? 0 : 1;
   const makerSymbol = TOKENS.find((t) => t.address === makerToken)?.symbol ?? "USDC";
@@ -59,7 +56,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
 
   const parsedMakerAmount = makerAmountStr ? parseAmount(makerAmountStr) : 0n;
   const parsedBidAmount = bidAmountStr ? parseAmount(bidAmountStr) : 0n;
-  const needsApproval = (allowance ?? 0n) < parsedMakerAmount || (allowance ?? 0n) === 0n;
+  const needsApproval = (allowance ?? 0n) < parsedMakerAmount;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,9 +71,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
 
       setStep("creating");
 
-      const salt = generateSalt();
       const viewKey = generateViewKey();
-      const commitment = commitAmount(parsedMakerAmount, salt);
       const vkHash = hashViewKey(viewKey);
 
       const encrypted = await encryptDetails(
@@ -96,7 +91,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
 
       await create({
         pair,
-        commitment,
+        makerAmount: parsedMakerAmount,
         encrypted: encrypted as `0x${string}`,
         viewKeyHash: vkHash,
         preferredTaker: (preferredTaker as `0x${string}`) || "0x0000000000000000000000000000000000000000",
@@ -104,16 +99,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
         rfqRef,
       });
 
-      const nextId = Date.now();
-      saveKit({
-        tradeId: nextId,
-        amount: parsedMakerAmount.toString(),
-        salt,
-        viewKey,
-        role: "maker",
-      });
-
-      setKitCopy({ viewKey, salt, amount: parsedMakerAmount.toString() });
+      setViewKeyCopy(viewKey);
       setStep("done");
       onSuccess?.();
     } catch (err: unknown) {
@@ -123,22 +109,20 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     }
   }
 
-  if (step === "done" && kitCopy) {
+  if (step === "done" && viewKeyCopy) {
     return (
       <Modal onClose={onClose}>
         <h2 className="text-lg font-semibold text-white mb-1">Quote posted</h2>
         <p className="text-sm text-arc-muted mb-5">
-          Save these. You will need them to settle the trade. Share the view key with your auditor.
+          Your tokens are now locked in escrow. Save your view key — it lets your auditor decrypt trade details.
         </p>
 
-        <div className="space-y-3 mb-6">
-          <KitField label="View key (share with your auditor)" value={kitCopy.viewKey} />
-          <KitField label="Settlement code (keep this private)" value={kitCopy.salt} />
-          <KitField label="Your amount" value={formatAmount(BigInt(kitCopy.amount))} />
+        <div className="mb-6">
+          <CopyField label="View key (share with your auditor)" value={viewKeyCopy} />
         </div>
 
         <div className="p-3 rounded-lg bg-matched/10 border border-matched/30 text-sm text-matched mb-5">
-          Wait for someone to take your quote. Once matched, share your settlement code and amount with them to complete the trade.
+          Wait for a taker to match your quote. Once matched, you can settle the trade at any time.
         </div>
 
         <button
@@ -155,7 +139,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     <Modal onClose={onClose}>
       <h2 className="text-lg font-semibold text-white mb-1">New quote</h2>
       <p className="text-sm text-arc-muted mb-5">
-        Your amount stays hidden until both sides settle. Firm name and reference are encrypted and only readable with your view key.
+        Your tokens will be locked in escrow on posting. Institution name and reference are encrypted and only readable with your view key.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -322,7 +306,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
   );
 }
 
-function KitField({ label, value }: { label: string; value: string }) {
+function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
   function copy() {

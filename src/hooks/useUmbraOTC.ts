@@ -156,7 +156,7 @@ export function useCreateRFQ() {
 
   const create = async (args: {
     pair: number;
-    commitment: `0x${string}`;
+    makerAmount: bigint;
     encrypted: `0x${string}`;
     viewKeyHash: `0x${string}`;
     preferredTaker: `0x${string}`;
@@ -170,7 +170,7 @@ export function useCreateRFQ() {
       functionName: "createRFQ",
       args: [
         args.pair,
-        args.commitment,
+        args.makerAmount,
         args.encrypted as `0x${string}`,
         args.viewKeyHash,
         args.preferredTaker,
@@ -193,7 +193,7 @@ export function useMatchRFQ() {
 
   const match = async (args: {
     id: bigint;
-    takerCommitment: `0x${string}`;
+    takerAmount: bigint;
     takerEncrypted: `0x${string}`;
   }) => {
     await ensureArc();
@@ -201,7 +201,7 @@ export function useMatchRFQ() {
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "matchRFQ",
-      args: [args.id, args.takerCommitment, args.takerEncrypted as `0x${string}`],
+      args: [args.id, args.takerAmount, args.takerEncrypted as `0x${string}`],
     });
     await awaitMined(config, hash);
     return hash;
@@ -216,19 +216,13 @@ export function useSettle() {
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
-  const settle = async (args: {
-    id: bigint;
-    makerAmount: bigint;
-    makerSalt: `0x${string}`;
-    takerAmount: bigint;
-    takerSalt: `0x${string}`;
-  }) => {
+  const settle = async (id: bigint) => {
     await ensureArc();
     const hash = await writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "settle",
-      args: [args.id, args.makerAmount, args.makerSalt, args.takerAmount, args.takerSalt],
+      args: [id],
     });
     await awaitMined(config, hash);
     return hash;
