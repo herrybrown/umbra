@@ -2,11 +2,8 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import {
-  generateViewKey,
-  encryptDetails,
-} from "@/lib/crypto";
-import { parseAmount, formatAmount, pairLabel, takerTokenLabel } from "@/lib/utils";
+import { generateViewKey, encryptDetails } from "@/lib/crypto";
+import { parseAmount, pairLabel, takerTokenLabel } from "@/lib/utils";
 import { useMatchRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
 import { USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 
@@ -15,8 +12,6 @@ interface Trade {
   pair: number;
   rfqRef: string;
   maker: `0x${string}`;
-  makerAmount: bigint;
-  viewKeyHash: `0x${string}`;
 }
 
 interface Props {
@@ -33,10 +28,8 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
   const [step, setStep] = useState<"idle" | "approving" | "matching" | "done">("idle");
   const [error, setError] = useState("");
 
-  // Taker sends the opposite token of maker
   const sendToken = trade.pair === 0 ? EURC_ADDRESS : USDC_ADDRESS;
   const sendSymbol = takerTokenLabel(trade.pair);
-  const makerSymbol = trade.pair === 0 ? "USDC" : "EURC";
 
   const { data: allowance } = useTokenAllowance(sendToken, address);
   const { approve } = useApproveToken();
@@ -59,7 +52,6 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
       setStep("matching");
 
       const viewKey = generateViewKey();
-
       const encrypted = await encryptDetails(
         {
           amount: parsedAmount.toString(),
@@ -91,22 +83,11 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
       <Modal onClose={onClose}>
         <h2 className="text-lg font-semibold text-white mb-1">Quote matched</h2>
         <p className="text-sm text-arc-muted mb-5">
-          Your tokens are locked in escrow. The maker will settle the trade.
+          Your tokens are locked in escrow. The maker will settle the trade when ready.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-            <div className="text-xs text-arc-muted mb-1">You locked ({sendSymbol})</div>
-            <div className="font-mono text-sm text-white">{formatAmount(parsedAmount)}</div>
-          </div>
-          <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-            <div className="text-xs text-arc-muted mb-1">You receive ({makerSymbol})</div>
-            <div className="font-mono text-sm text-white">{formatAmount(trade.makerAmount)}</div>
-          </div>
-        </div>
-
         <div className="p-3 rounded-lg bg-matched/10 border border-matched/30 text-sm text-matched mb-5">
-          Waiting for the maker to settle. Once they do, tokens will be swapped automatically.
+          Once the maker settles, tokens will be swapped automatically. No further action needed from you.
         </div>
 
         <button
@@ -126,13 +107,8 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
         Trade #{trade.id.toString()} · {pairLabel(trade.pair)}
       </div>
       <p className="text-sm text-arc-muted mb-5">
-        Enter the amount you will send ({sendSymbol}). Your tokens will be locked in escrow immediately.
+        Enter the amount you agreed with the maker. Your tokens will be locked in escrow immediately and amounts remain private.
       </p>
-
-      <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3 mb-4">
-        <div className="text-xs text-arc-muted mb-1">Maker is sending ({makerSymbol})</div>
-        <div className="font-mono text-sm text-white">{formatAmount(trade.makerAmount)}</div>
-      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

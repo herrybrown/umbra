@@ -2,7 +2,6 @@
 
 import { useAccount } from "wagmi";
 import {
-  formatAmount,
   formatExpiry,
   formatTimestamp,
   pairLabel,
@@ -22,8 +21,7 @@ interface Trade {
   status: number;
   expiresAt: bigint;
   createdAt: bigint;
-  makerAmount: bigint;
-  takerAmount: bigint;
+  bidCommitment: `0x${string}`;
   rfqRef: string;
 }
 
@@ -34,6 +32,8 @@ interface Props {
   onCancel?: () => void;
 }
 
+const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
   const { address } = useAccount();
   const isMaker = address?.toLowerCase() === trade.maker.toLowerCase();
@@ -42,6 +42,7 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
   const isMatched = trade.status === 1;
   const isSettled = trade.status === 2;
   const isActive = isOpen || isMatched;
+  const hasBidCriteria = trade.bidCommitment !== ZERO_BYTES32;
   const expiresAt = Number(trade.expiresAt);
 
   return (
@@ -66,7 +67,7 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-white font-medium">{pairLabel(trade.pair)}</span>
             <span
               className={cn(
@@ -76,18 +77,21 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             >
               {statusLabel(trade.status)}
             </span>
+            {hasBidCriteria && isOpen && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-matched/30 text-matched bg-matched/10">
+                CRITERIA SET
+              </span>
+            )}
           </div>
         </div>
 
         {isActive && (
-          <div className="text-right">
+          <div className="text-right shrink-0 ml-2">
             <div className="text-xs text-arc-muted">Expires in</div>
             <div
               className={cn(
                 "text-sm font-mono",
-                expiresAt - Date.now() / 1000 < 3600
-                  ? "text-danger"
-                  : "text-white"
+                expiresAt - Date.now() / 1000 < 3600 ? "text-danger" : "text-white"
               )}
             >
               {formatExpiry(expiresAt)}
@@ -96,26 +100,28 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
         )}
       </div>
 
-      {/* Escrowed amounts */}
+      {/* Private amounts indicator */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-          <div className="text-xs text-arc-muted mb-1">
+          <div className="text-xs text-arc-muted mb-1.5">
             Maker sends ({makerTokenLabel(trade.pair)})
           </div>
-          <div className="font-mono text-sm text-white">
-            {formatAmount(trade.makerAmount)}
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-umbra-purple" />
+            <span className="text-xs font-mono text-umbra-glow tracking-widest">PRIVATE</span>
           </div>
         </div>
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-          <div className="text-xs text-arc-muted mb-1">
+          <div className="text-xs text-arc-muted mb-1.5">
             Taker sends ({takerTokenLabel(trade.pair)})
           </div>
-          {isMatched || isSettled ? (
-            <div className="font-mono text-sm text-white">
-              {formatAmount(trade.takerAmount)}
-            </div>
-          ) : (
+          {isOpen ? (
             <span className="text-xs text-arc-muted font-mono">Awaiting taker</span>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-umbra-purple" />
+              <span className="text-xs font-mono text-umbra-glow tracking-widest">PRIVATE</span>
+            </div>
           )}
         </div>
       </div>
@@ -124,19 +130,13 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
       <div className="flex items-center justify-between text-xs text-arc-muted mb-4">
         <div>
           <span>Maker: </span>
-          <span className="font-mono text-white">
-            {shortenAddress(trade.maker)}
-          </span>
-          {isMaker && (
-            <span className="ml-1 text-umbra-glow">(you)</span>
-          )}
+          <span className="font-mono text-white">{shortenAddress(trade.maker)}</span>
+          {isMaker && <span className="ml-1 text-umbra-glow">(you)</span>}
         </div>
         {trade.taker !== "0x0000000000000000000000000000000000000000" && (
           <div>
             <span>Taker: </span>
-            <span className="font-mono text-white">
-              {shortenAddress(trade.taker)}
-            </span>
+            <span className="font-mono text-white">{shortenAddress(trade.taker)}</span>
             {isTaker && <span className="ml-1 text-umbra-glow">(you)</span>}
           </div>
         )}

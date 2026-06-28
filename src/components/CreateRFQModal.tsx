@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
+import { keccak256, encodePacked } from "viem";
 import {
   generateViewKey,
   viewKeyHash as hashViewKey,
   encryptDetails,
 } from "@/lib/crypto";
-import { parseAmount, formatAmount } from "@/lib/utils";
+import { parseAmount } from "@/lib/utils";
 import { useCreateRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
 import { USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 
@@ -15,6 +16,8 @@ const TOKENS = [
   { address: USDC_ADDRESS, symbol: "USDC" },
   { address: EURC_ADDRESS, symbol: "EURC" },
 ] as const;
+
+const ZERO_COMMITMENT = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`;
 
 interface Props {
   onClose: () => void;
@@ -58,6 +61,11 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
   const parsedBidAmount = bidAmountStr ? parseAmount(bidAmountStr) : 0n;
   const needsApproval = (allowance ?? 0n) < parsedMakerAmount;
 
+  // Bid commitment: keccak256(expectedTakerAmount) if set, else zero bytes
+  const bidCommitment: `0x${string}` = parsedBidAmount > 0n
+    ? keccak256(encodePacked(["uint256"], [parsedBidAmount]))
+    : ZERO_COMMITMENT;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!address) return;
@@ -92,6 +100,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
       await create({
         pair,
         makerAmount: parsedMakerAmount,
+        bidCommitment,
         encrypted: encrypted as `0x${string}`,
         viewKeyHash: vkHash,
         preferredTaker: (preferredTaker as `0x${string}`) || "0x0000000000000000000000000000000000000000",
@@ -114,10 +123,10 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
       <Modal onClose={onClose}>
         <h2 className="text-lg font-semibold text-white mb-1">Quote posted</h2>
         <p className="text-sm text-arc-muted mb-5">
-          Your tokens are now locked in escrow. Save your view key — it lets your auditor decrypt trade details.
+          Your tokens are locked in escrow. Save your view key — share it with your auditor to decrypt trade details.
         </p>
 
-        <div className="mb-6">
+        <div className="mb-5">
           <CopyField label="View key (share with your auditor)" value={viewKeyCopy} />
         </div>
 
@@ -139,7 +148,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     <Modal onClose={onClose}>
       <h2 className="text-lg font-semibold text-white mb-1">New quote</h2>
       <p className="text-sm text-arc-muted mb-5">
-        Your tokens will be locked in escrow on posting. Institution name and reference are encrypted and only readable with your view key.
+        Amounts are kept private on-chain. Your tokens are locked in escrow on posting.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -196,15 +205,18 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
           </div>
           <div>
             <label className="text-xs text-arc-muted uppercase tracking-wider mb-2 block">
-              Bid ({takerSymbol})
+              Expected bid ({takerSymbol})
             </label>
             <input
               type="text"
-              placeholder="0.00"
+              placeholder="0.00 (optional)"
               value={bidAmountStr}
               onChange={(e) => setBidAmountStr(e.target.value)}
               className="w-full bg-arc-dark border border-arc-border rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-umbra-purple"
             />
+            <p className="text-[11px] text-arc-muted mt-1">
+              If set, only takers who bid this exact amount get matched.
+            </p>
           </div>
         </div>
 

@@ -135,18 +135,7 @@ export function AuditDecoder() {
             <Field label="Maker" value={trade.maker} mono />
             <Field label="Taker" value={trade.taker === "0x0000000000000000000000000000000000000000" ? "Open" : trade.taker} mono />
             {trade.status === 2 && (
-              <>
-                <Field
-                  label="Maker amount"
-                  value={formatAmount(trade.makerAmount)}
-                  highlight
-                />
-                <Field
-                  label="Taker amount"
-                  value={formatAmount(trade.takerAmount)}
-                  highlight
-                />
-              </>
+              <Field label="Status" value="Settled — amounts private" highlight />
             )}
           </div>
 

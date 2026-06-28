@@ -1,5 +1,5 @@
 export const UMBRA_OTC_ADDRESS = (process.env.NEXT_PUBLIC_UMBRA_ADDRESS ??
-  "0x3f90743fbcFeC418A6E5aD3bc822Fc05C521DFfD") as `0x${string}`;
+  "0x2309620423d5b1dB1fDF41A4a6103428316729d3") as `0x${string}`;
 
 export const USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000" as `0x${string}`;
@@ -51,8 +51,7 @@ export const UMBRA_OTC_ABI = [
           { name: "status", type: "uint8" },
           { name: "expiresAt", type: "uint64" },
           { name: "createdAt", type: "uint64" },
-          { name: "makerAmount", type: "uint256" },
-          { name: "takerAmount", type: "uint256" },
+          { name: "bidCommitment", type: "bytes32" },
           { name: "makerEncrypted", type: "bytes" },
           { name: "takerEncrypted", type: "bytes" },
           { name: "viewKeyHash", type: "bytes32" },
@@ -99,6 +98,7 @@ export const UMBRA_OTC_ABI = [
     inputs: [
       { name: "pair", type: "uint8" },
       { name: "makerAmount", type: "uint256" },
+      { name: "bidCommitment", type: "bytes32" },
       { name: "encrypted", type: "bytes" },
       { name: "viewKeyHash", type: "bytes32" },
       { name: "preferredTaker", type: "address" },
@@ -176,11 +176,7 @@ export const UMBRA_OTC_ABI = [
   },
   {
     anonymous: false,
-    inputs: [
-      { indexed: true, name: "id", type: "uint256" },
-      { indexed: false, name: "makerAmount", type: "uint256" },
-      { indexed: false, name: "takerAmount", type: "uint256" },
-    ],
+    inputs: [{ indexed: true, name: "id", type: "uint256" }],
     name: "TradeSettled",
     type: "event",
   },

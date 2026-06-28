@@ -157,6 +157,7 @@ export function useCreateRFQ() {
   const create = async (args: {
     pair: number;
     makerAmount: bigint;
+    bidCommitment: `0x${string}`;
     encrypted: `0x${string}`;
     viewKeyHash: `0x${string}`;
     preferredTaker: `0x${string}`;
@@ -171,6 +172,7 @@ export function useCreateRFQ() {
       args: [
         args.pair,
         args.makerAmount,
+        args.bidCommitment,
         args.encrypted as `0x${string}`,
         args.viewKeyHash,
         args.preferredTaker,

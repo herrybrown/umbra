@@ -6,19 +6,19 @@ import {IERC20} from "./interfaces/IERC20.sol";
 
 /**
  * @title UmbraOTC
- * @notice Confidential OTC trading desk on Arc Testnet.
+ * @notice Dark-pool OTC desk on Arc Testnet.
  *
  * Trade lifecycle:
- *   OPEN     → maker creates RFQ and locks their tokens in this contract
- *   MATCHED  → taker locks their tokens; both sides are now fully escrowed
- *   SETTLED  → maker calls settle(); contract atomically swaps escrowed tokens
- *   CANCELLED / EXPIRED → locked tokens returned to their respective owners
+ *   OPEN     → maker locks their tokens in escrow; amounts never stored in public state
+ *   MATCHED  → taker locks their tokens; bid commitment verified if set by maker
+ *   SETTLED  → maker triggers atomic swap of escrowed tokens
+ *   CANCELLED / EXPIRED → escrowed tokens returned to their owners
  *
  * Privacy model:
- *   - Amounts are stored on-chain (visible) once locked
- *   - Institution name and trade reference are AES-GCM encrypted,
- *     keyed by a viewKey known only to the maker and their auditor
- *   - keccak256(viewKey) is stored for auditor verification
+ *   - Token amounts are stored in private contract mappings; getTrade() exposes none
+ *   - Only the encrypted blob (keyed by viewKey) reveals amounts to auditors
+ *   - bidCommitment lets maker enforce an exact taker bid for open-market quotes,
+ *     with the expected amount shared off-chain via the RFQ process
  */
 contract UmbraOTC is ReentrancyGuard {
     address public immutable USDC;
@@ -45,9 +45,9 @@ contract UmbraOTC is ReentrancyGuard {
         TradeStatus status;
         uint64 expiresAt;
         uint64 createdAt;
-        // Escrowed amounts — set when each side locks tokens
-        uint256 makerAmount;     // set at createRFQ, locked in contract
-        uint256 takerAmount;     // set at matchRFQ, locked in contract
+        // Optional bid criteria: keccak256(abi.encodePacked(expectedTakerAmount))
+        // bytes32(0) = accept any amount
+        bytes32 bidCommitment;
         // Encrypted trade details (AES-GCM with viewKey) — for auditor
         bytes makerEncrypted;
         bytes takerEncrypted;    // set on matchRFQ
@@ -56,6 +56,10 @@ contract UmbraOTC is ReentrancyGuard {
         // Off-chain reference
         string rfqRef;
     }
+
+    // Private escrow ledger — amounts never exposed via ABI
+    mapping(uint256 => uint256) private _makerLocked;
+    mapping(uint256 => uint256) private _takerLocked;
 
     uint256 public nextTradeId;
     mapping(uint256 => Trade) public trades;
@@ -68,7 +72,7 @@ contract UmbraOTC is ReentrancyGuard {
 
     event TradeCreated(uint256 indexed id, address indexed maker, TokenPair pair, uint64 expiresAt, string rfqRef);
     event TradeMatched(uint256 indexed id, address indexed taker);
-    event TradeSettled(uint256 indexed id, uint256 makerAmount, uint256 takerAmount);
+    event TradeSettled(uint256 indexed id);
     event TradeCancelled(uint256 indexed id);
     event TradeExpired(uint256 indexed id);
     event AuditorUpdated(address indexed auditor, bool active);
@@ -83,6 +87,7 @@ contract UmbraOTC is ReentrancyGuard {
     error NotExpired();
     error SelfTrade();
     error WrongTaker();
+    error BidMismatch();
     error TransferFailed();
 
     modifier onlyOwner() {
@@ -101,19 +106,20 @@ contract UmbraOTC is ReentrancyGuard {
 
     /**
      * @notice Create a new RFQ and lock the maker's tokens in escrow.
-     *         Caller must have approved this contract for at least `makerAmount`
-     *         of the send token before calling.
+     *         The locked amount is never stored in public state.
      * @param pair           USDC_EURC or EURC_USDC (from maker's perspective)
-     * @param makerAmount    Amount the maker is locking (in token's native decimals)
-     * @param encrypted      AES-GCM encrypted {institution, ref, …} blob
-     * @param viewKeyHash    keccak256(abi.encodePacked(viewKey)) for auditor verification
+     * @param makerAmount    Amount to lock (approved beforehand)
+     * @param bidCommitment  keccak256(abi.encodePacked(expectedTakerAmount)), or bytes32(0) for any amount
+     * @param encrypted      AES-GCM encrypted trade details for auditor
+     * @param viewKeyHash    keccak256(abi.encodePacked(viewKey))
      * @param preferredTaker address(0) = open market, else restricted to that address
      * @param expiresAt      Unix timestamp; must be within 7 days
-     * @param rfqRef         Offchain reference identifier (e.g. "RFQ-2024-001")
+     * @param rfqRef         Off-chain reference (e.g. "RFQ-2024-001")
      */
     function createRFQ(
         TokenPair pair,
         uint256 makerAmount,
+        bytes32 bidCommitment,
         bytes calldata encrypted,
         bytes32 viewKeyHash,
         address preferredTaker,
@@ -136,10 +142,12 @@ contract UmbraOTC is ReentrancyGuard {
         t.status = TradeStatus.OPEN;
         t.expiresAt = expiresAt;
         t.createdAt = uint64(block.timestamp);
-        t.makerAmount = makerAmount;
+        t.bidCommitment = bidCommitment;
         t.makerEncrypted = encrypted;
         t.viewKeyHash = viewKeyHash;
         t.rfqRef = rfqRef;
+
+        _makerLocked[id] = makerAmount;
 
         makerTrades[msg.sender].push(id);
         _openIds.push(id);
@@ -151,11 +159,10 @@ contract UmbraOTC is ReentrancyGuard {
 
     /**
      * @notice Match an open RFQ and lock the taker's tokens in escrow.
-     *         Caller must have approved this contract for at least `takerAmount`
-     *         of their send token before calling.
-     * @param id             Trade ID to match
+     *         If the maker set a bidCommitment, the taker's amount must match exactly.
+     * @param id             Trade to match
      * @param takerAmount    Amount the taker is locking
-     * @param takerEncrypted AES-GCM encrypted taker details blob
+     * @param takerEncrypted AES-GCM encrypted taker details for auditor
      */
     function matchRFQ(
         uint256 id,
@@ -168,13 +175,19 @@ contract UmbraOTC is ReentrancyGuard {
         if (t.maker == msg.sender) revert SelfTrade();
         if (t.taker != address(0) && t.taker != msg.sender) revert WrongTaker();
 
+        // Enforce bid criteria if maker set one
+        if (t.bidCommitment != bytes32(0)) {
+            if (keccak256(abi.encodePacked(takerAmount)) != t.bidCommitment) revert BidMismatch();
+        }
+
         (, address toToken) = _tokens(t.pair);
         if (!IERC20(toToken).transferFrom(msg.sender, address(this), takerAmount)) revert TransferFailed();
 
         t.taker = msg.sender;
-        t.takerAmount = takerAmount;
         t.takerEncrypted = takerEncrypted;
         t.status = TradeStatus.MATCHED;
+
+        _takerLocked[id] = takerAmount;
 
         takerTrades[msg.sender].push(id);
         _removeOpenId(id);
@@ -186,24 +199,26 @@ contract UmbraOTC is ReentrancyGuard {
 
     /**
      * @notice Settle a matched trade. Only the maker may call.
-     *         Atomically swaps the escrowed tokens: taker's tokens go to maker,
-     *         maker's tokens go to taker.
+     *         Atomically swaps escrowed tokens without revealing amounts.
      */
     function settle(uint256 id) external nonReentrant {
         Trade storage t = trades[id];
         if (t.status != TradeStatus.MATCHED) revert TradeNotMatched();
         if (msg.sender != t.maker) revert NotMaker();
 
+        uint256 makerAmt = _makerLocked[id];
+        uint256 takerAmt = _takerLocked[id];
+
         t.status = TradeStatus.SETTLED;
+        _makerLocked[id] = 0;
+        _takerLocked[id] = 0;
 
         (address fromToken, address toToken) = _tokens(t.pair);
 
-        // Maker's locked tokens → taker
-        if (!IERC20(fromToken).transfer(t.taker, t.makerAmount)) revert TransferFailed();
-        // Taker's locked tokens → maker
-        if (!IERC20(toToken).transfer(t.maker, t.takerAmount)) revert TransferFailed();
+        if (!IERC20(fromToken).transfer(t.taker, makerAmt)) revert TransferFailed();
+        if (!IERC20(toToken).transfer(t.maker, takerAmt)) revert TransferFailed();
 
-        emit TradeSettled(id, t.makerAmount, t.takerAmount);
+        emit TradeSettled(id);
     }
 
     // ─── Cancellation ────────────────────────────────────────────────────────
@@ -211,8 +226,6 @@ contract UmbraOTC is ReentrancyGuard {
     /**
      * @notice Cancel a trade. Only the maker may cancel.
      *         Returns escrowed tokens to their owners.
-     *         - OPEN: returns maker's tokens
-     *         - MATCHED: returns maker's tokens AND taker's tokens
      */
     function cancel(uint256 id) external nonReentrant {
         Trade storage t = trades[id];
@@ -221,13 +234,18 @@ contract UmbraOTC is ReentrancyGuard {
         if (s != TradeStatus.OPEN && s != TradeStatus.MATCHED) revert AlreadyFinalized();
         if (msg.sender != t.maker) revert NotMaker();
 
+        uint256 makerAmt = _makerLocked[id];
+        uint256 takerAmt = _takerLocked[id];
+
         t.status = TradeStatus.CANCELLED;
+        _makerLocked[id] = 0;
+        _takerLocked[id] = 0;
 
         (address fromToken, address toToken) = _tokens(t.pair);
 
-        if (!IERC20(fromToken).transfer(t.maker, t.makerAmount)) revert TransferFailed();
+        if (!IERC20(fromToken).transfer(t.maker, makerAmt)) revert TransferFailed();
         if (s == TradeStatus.MATCHED) {
-            if (!IERC20(toToken).transfer(t.taker, t.takerAmount)) revert TransferFailed();
+            if (!IERC20(toToken).transfer(t.taker, takerAmt)) revert TransferFailed();
         }
 
         if (s == TradeStatus.OPEN) _removeOpenId(id);
@@ -236,7 +254,7 @@ contract UmbraOTC is ReentrancyGuard {
     }
 
     /**
-     * @notice Mark an OPEN or MATCHED trade as expired. Anyone can call after expiry.
+     * @notice Mark an OPEN or MATCHED trade as expired. Anyone may call after expiry.
      *         Returns escrowed tokens to their owners.
      */
     function markExpired(uint256 id) external nonReentrant {
@@ -246,13 +264,18 @@ contract UmbraOTC is ReentrancyGuard {
         if (s != TradeStatus.OPEN && s != TradeStatus.MATCHED) revert AlreadyFinalized();
         if (block.timestamp < t.expiresAt) revert NotExpired();
 
+        uint256 makerAmt = _makerLocked[id];
+        uint256 takerAmt = _takerLocked[id];
+
         t.status = TradeStatus.EXPIRED;
+        _makerLocked[id] = 0;
+        _takerLocked[id] = 0;
 
         (address fromToken, address toToken) = _tokens(t.pair);
 
-        if (!IERC20(fromToken).transfer(t.maker, t.makerAmount)) revert TransferFailed();
+        if (!IERC20(fromToken).transfer(t.maker, makerAmt)) revert TransferFailed();
         if (s == TradeStatus.MATCHED) {
-            if (!IERC20(toToken).transfer(t.taker, t.takerAmount)) revert TransferFailed();
+            if (!IERC20(toToken).transfer(t.taker, takerAmt)) revert TransferFailed();
         }
 
         if (s == TradeStatus.OPEN) _removeOpenId(id);

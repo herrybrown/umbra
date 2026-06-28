@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { useSettle } from "@/hooks/useUmbraOTC";
-import { formatAmount, pairLabel, makerTokenLabel, takerTokenLabel } from "@/lib/utils";
+import { pairLabel, makerTokenLabel, takerTokenLabel } from "@/lib/utils";
 
 interface Trade {
   id: bigint;
   maker: `0x${string}`;
   taker: `0x${string}`;
   pair: number;
-  makerAmount: bigint;
-  takerAmount: bigint;
   rfqRef: string;
 }
 
@@ -48,7 +46,7 @@ export function SettleModal({ trade, onClose, onSuccess }: Props) {
           </div>
           <h2 className="text-lg font-semibold text-white mb-2">Trade Settled</h2>
           <p className="text-sm text-arc-muted mb-6">
-            Tokens have been swapped. The trade is complete.
+            Escrowed tokens have been swapped. The trade is complete.
           </p>
           <button
             onClick={onClose}
@@ -70,26 +68,23 @@ export function SettleModal({ trade, onClose, onSuccess }: Props) {
 
       <div className="grid grid-cols-2 gap-3 mb-5">
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-          <div className="text-xs text-arc-muted mb-1">
-            You send ({makerTokenLabel(trade.pair)})
-          </div>
-          <div className="font-mono text-sm text-white">
-            {formatAmount(trade.makerAmount)}
+          <div className="text-xs text-arc-muted mb-1.5">You send ({makerTokenLabel(trade.pair)})</div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-umbra-purple" />
+            <span className="text-xs font-mono text-umbra-glow tracking-widest">PRIVATE</span>
           </div>
         </div>
         <div className="rounded-lg bg-arc-dark border border-arc-border/50 p-3">
-          <div className="text-xs text-arc-muted mb-1">
-            You receive ({takerTokenLabel(trade.pair)})
-          </div>
-          <div className="font-mono text-sm text-white">
-            {formatAmount(trade.takerAmount)}
+          <div className="text-xs text-arc-muted mb-1.5">You receive ({takerTokenLabel(trade.pair)})</div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-umbra-purple" />
+            <span className="text-xs font-mono text-umbra-glow tracking-widest">PRIVATE</span>
           </div>
         </div>
       </div>
 
       <div className="p-3 rounded-lg bg-arc-dark border border-arc-border/50 text-sm text-arc-muted mb-5">
-        Settling will atomically swap the escrowed tokens — taker receives your{" "}
-        {makerTokenLabel(trade.pair)}, you receive their {takerTokenLabel(trade.pair)}.
+        Settling will atomically swap your escrowed {makerTokenLabel(trade.pair)} for the taker&apos;s escrowed {takerTokenLabel(trade.pair)}.
       </div>
 
       {error && (
