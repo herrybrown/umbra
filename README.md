@@ -39,7 +39,7 @@ Every trade stores encrypted details: firm names, amounts, timestamps. Only a vi
 To give your auditor access:
 
 1. Share the **view key** from your settlement kit with them.
-2. They go to the [Audit panel](https://umbra-ecru.vercel.app/audit), enter the trade ID and the view key.
+2. They open the **Audit** panel, enter the trade ID and the view key.
 3. Everything decrypts locally in their browser. Nothing is sent to a server.
 
 ---
@@ -63,8 +63,7 @@ Add Arc Testnet to your wallet:
 git clone https://github.com/herrybrown/umbra.git
 cd umbra
 npm install
-cp .env.example .env.local
-# fill in NEXT_PUBLIC_UMBRA_ADDRESS
+echo "NEXT_PUBLIC_UMBRA_ADDRESS=<deployed-contract-address>" > .env.local
 npm run dev
 ```
 
@@ -89,9 +88,3 @@ cd contracts
 forge build
 forge script script/Deploy.s.sol --rpc-url $ARC_RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
-
----
-
-## Live app
-
-[umbra-ecru.vercel.app](https://umbra-ecru.vercel.app)

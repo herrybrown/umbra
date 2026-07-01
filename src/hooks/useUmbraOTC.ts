@@ -4,8 +4,21 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useChainId,
+  useSwitchChain,
 } from "wagmi";
 import { UMBRA_OTC_ABI, UMBRA_OTC_ADDRESS, ERC20_ABI, USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
+import { arcTestnet } from "@/lib/chains";
+
+function useEnsureArcChain() {
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
+  return async () => {
+    if (chainId !== arcTestnet.id) {
+      await switchChainAsync({ chainId: arcTestnet.id });
+    }
+  };
+}
 
 // ─── Read hooks ──────────────────────────────────────────────────────────────
 
@@ -131,6 +144,7 @@ function useWrite<T>(
 }
 
 export function useCreateRFQ() {
+  const ensureArc = useEnsureArcChain();
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
@@ -143,10 +157,12 @@ export function useCreateRFQ() {
     expiresAt: bigint;
     rfqRef: string;
   }) => {
+    await ensureArc();
     return writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "createRFQ",
+      chainId: arcTestnet.id,
       args: [
         args.pair,
         args.commitment,
@@ -163,6 +179,7 @@ export function useCreateRFQ() {
 }
 
 export function useMatchRFQ() {
+  const ensureArc = useEnsureArcChain();
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
@@ -171,10 +188,12 @@ export function useMatchRFQ() {
     takerCommitment: `0x${string}`;
     takerEncrypted: `0x${string}`;
   }) => {
+    await ensureArc();
     return writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "matchRFQ",
+      chainId: arcTestnet.id,
       args: [args.id, args.takerCommitment, args.takerEncrypted as `0x${string}`],
     });
   };
@@ -183,6 +202,7 @@ export function useMatchRFQ() {
 }
 
 export function useSettle() {
+  const ensureArc = useEnsureArcChain();
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
@@ -193,10 +213,12 @@ export function useSettle() {
     takerAmount: bigint;
     takerSalt: `0x${string}`;
   }) => {
+    await ensureArc();
     return writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "settle",
+      chainId: arcTestnet.id,
       args: [args.id, args.makerAmount, args.makerSalt, args.takerAmount, args.takerSalt],
     });
   };
@@ -205,14 +227,17 @@ export function useSettle() {
 }
 
 export function useCancel() {
+  const ensureArc = useEnsureArcChain();
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
   const cancel = async (id: bigint) => {
+    await ensureArc();
     return writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "cancel",
+      chainId: arcTestnet.id,
       args: [id],
     });
   };
@@ -221,14 +246,17 @@ export function useCancel() {
 }
 
 export function useApproveToken() {
+  const ensureArc = useEnsureArcChain();
   const { writeContractAsync, isPending, error, data } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
 
   const approve = async (token: `0x${string}`) => {
+    await ensureArc();
     return writeContractAsync({
       address: token,
       abi: ERC20_ABI,
       functionName: "approve",
+      chainId: arcTestnet.id,
       args: [UMBRA_OTC_ADDRESS, BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")],
     });
   };
