@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <clipPath id="c">
+      <circle cx="16" cy="16" r="13"/>
+    </clipPath>
+    <radialGradient id="g" cx="88%" cy="50%" r="70%" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#ddd6fe"/>
+      <stop offset="45%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#c)">
+    <circle cx="16" cy="16" r="13" fill="url(#g)"/>
+    <circle cx="11" cy="16" r="12" fill="#09010f"/>
+  </g>
+  <circle cx="16" cy="16" r="13" stroke="#7c3aed" stroke-width="1.5" fill="none" stroke-opacity="0.65"/>
+</svg>
