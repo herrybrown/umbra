@@ -14,7 +14,7 @@ Connect your wallet and go to the Trading Desk. Click **New Quote** to set your 
 
 When you post, your amount is sealed. The actual number never appears publicly. Your firm name and reference are encrypted and only readable with your view key.
 
-You get a settlement kit. Save it. It has three things: your view key (share with your auditor), your settlement code (share with your counterparty to settle), and your amount.
+You get an audit key. Save it. It lets your auditor decrypt your side of the trade.
 
 ### 2. A counterparty takes your quote
 
@@ -24,11 +24,11 @@ Both amounts are now sealed and invisible to anyone else on the network.
 
 ### 3. Exchange settlement details
 
-Once matched, you and your counterparty share your settlement codes and amounts with each other privately, over Signal, email, or wherever you agree.
+Once matched, both sides remain private onchain. Each participant keeps their own audit key for later disclosure.
 
 ### 4. Settle
 
-Either of you can open the trade and click **Settle Trade**. You enter your settlement code and amount, and the counterparty's. The contract checks both sides match what was agreed and executes the swap. If the numbers do not add up, the whole thing reverts. Nothing moves until both sides are correct.
+The maker opens the trade and clicks **Settle Trade**. The contract atomically swaps the escrowed balances already locked by maker and taker. Nothing moves unless both sides were successfully escrowed.
 
 ---
 
@@ -38,8 +38,8 @@ Every trade stores encrypted details: firm names, amounts, timestamps. Only a vi
 
 To give your auditor access:
 
-1. Share the **view key** from your settlement kit with them.
-2. They open the **Audit** panel, enter the trade ID and the view key.
+1. Share the relevant participant **view key** with them.
+2. They open the **Audit** panel, enter the trade ID and the participant view key.
 3. Everything decrypts locally in their browser. Nothing is sent to a server.
 
 ---
@@ -78,7 +78,7 @@ Addresses on Arc Testnet:
 
 - USDC: `0x3600000000000000000000000000000000000000`
 - EURC: `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
-- UmbraOTC: `0xAb6c00a09136435fFB97A427b7cfcda8895a1a45` (override with `NEXT_PUBLIC_UMBRA_ADDRESS` if you redeploy)
+- UmbraOTC: `0xbe4Fd7e990F7eab9023192a1ABf0568478dEFb2c` (override with `NEXT_PUBLIC_UMBRA_ADDRESS` if you redeploy)
 
 To deploy the contract yourself:
 

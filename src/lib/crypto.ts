@@ -110,7 +110,6 @@ export async function decryptDetails(
 export interface SettlementKit {
   tradeId: number;
   amount: string;
-  salt: `0x${string}`;
   viewKey: `0x${string}`;
   role: "maker" | "taker";
 }
@@ -132,7 +131,7 @@ export function loadKit(
   role: "maker" | "taker"
 ): SettlementKit | null {
   const kits = loadAllKits();
-  return kits.find((k) => k.tradeId === tradeId && k.role === k.role) ?? null;
+  return kits.find((k) => k.tradeId === tradeId && k.role === role) ?? null;
 }
 
 function loadAllKits(): SettlementKit[] {

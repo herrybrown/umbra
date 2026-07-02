@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAccount } from "wagmi";
 import {
   formatExpiry,
@@ -12,6 +13,7 @@ import {
   statusColor,
   cn,
 } from "@/lib/utils";
+import { loadKit } from "@/lib/crypto";
 
 interface Trade {
   id: bigint;
@@ -44,6 +46,8 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
   const isActive = isOpen || isMatched;
   const hasBidCriteria = trade.bidCommitment !== ZERO_BYTES32;
   const expiresAt = Number(trade.expiresAt);
+  const participantRole = isMaker ? "maker" : isTaker ? "taker" : null;
+  const auditKit = participantRole ? loadKit(Number(trade.id), participantRole) : null;
 
   return (
     <div
@@ -181,6 +185,75 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             {isSettled ? "Trade settled" : "No further action"}
           </div>
         )}
+      </div>
+
+      {isSettled && participantRole && auditKit && (
+        <AuditAccessPanel tradeId={trade.id} viewKey={auditKit.viewKey} />
+      )}
+    </div>
+  );
+}
+
+function AuditAccessPanel({
+  tradeId,
+  viewKey,
+}: {
+  tradeId: bigint;
+  viewKey: `0x${string}`;
+}) {
+  const [copiedField, setCopiedField] = useState<"tradeId" | "viewKey" | null>(null);
+
+  async function copy(label: "tradeId" | "viewKey", value: string) {
+    await navigator.clipboard.writeText(value);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 1500);
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-settled/30 bg-settled/5 p-3">
+      <div className="text-xs text-settled font-medium mb-3">Audit access</div>
+      <div className="space-y-2">
+        <AuditRow
+          label="Trade ID"
+          value={tradeId.toString()}
+          copied={copiedField === "tradeId"}
+          onCopy={() => copy("tradeId", tradeId.toString())}
+        />
+        <AuditRow
+          label="View Key"
+          value={viewKey}
+          copied={copiedField === "viewKey"}
+          onCopy={() => copy("viewKey", viewKey)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AuditRow({
+  label,
+  value,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] text-arc-muted uppercase tracking-wider mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded border border-arc-border bg-arc-dark p-2 text-[11px] font-mono text-white">
+          {value}
+        </code>
+        <button
+          onClick={onCopy}
+          className="shrink-0 rounded border border-arc-border px-2 py-1 text-xs text-arc-muted transition-colors hover:text-white"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
       </div>
     </div>
   );

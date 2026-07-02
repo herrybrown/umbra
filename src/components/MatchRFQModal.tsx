@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { generateViewKey, encryptDetails } from "@/lib/crypto";
+import { generateViewKey, encryptDetails, saveKit, viewKeyHash } from "@/lib/crypto";
 import { parseAmount, pairLabel, takerTokenLabel } from "@/lib/utils";
 import { useMatchRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
 import { USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
@@ -67,6 +67,14 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
         id: trade.id,
         takerAmount: parsedAmount,
         takerEncrypted: encrypted as `0x${string}`,
+        takerViewKeyHash: viewKeyHash(viewKey),
+      });
+
+      saveKit({
+        tradeId: Number(trade.id),
+        amount: parsedAmount.toString(),
+        viewKey,
+        role: "taker",
       });
 
       setStep("done");

@@ -145,7 +145,10 @@ export function AuditDecoder() {
               Onchain record
             </div>
             <div className="font-mono text-[10px] text-arc-muted break-all">
-              <span className="text-umbra-glow">VK:</span> {trade.viewKeyHash}
+              <span className="text-umbra-glow">Maker VK:</span> {trade.makerViewKeyHash}
+            </div>
+            <div className="font-mono text-[10px] text-arc-muted break-all mt-1">
+              <span className="text-umbra-glow">Taker VK:</span> {trade.takerViewKeyHash}
             </div>
           </div>
         </div>

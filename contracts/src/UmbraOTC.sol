@@ -48,11 +48,12 @@ contract UmbraOTC is ReentrancyGuard {
         // Optional bid criteria: keccak256(abi.encodePacked(expectedTakerAmount))
         // bytes32(0) = accept any amount
         bytes32 bidCommitment;
-        // Encrypted trade details (AES-GCM with viewKey) — for auditor
+        // Encrypted trade details (AES-GCM with participant-specific view keys) — for auditor
         bytes makerEncrypted;
         bytes takerEncrypted;    // set on matchRFQ
         // Auditor access
-        bytes32 viewKeyHash;     // keccak256(abi.encodePacked(viewKey))
+        bytes32 makerViewKeyHash; // keccak256(abi.encodePacked(viewKey))
+        bytes32 takerViewKeyHash; // keccak256(abi.encodePacked(viewKey))
         // Off-chain reference
         string rfqRef;
     }
@@ -110,8 +111,8 @@ contract UmbraOTC is ReentrancyGuard {
      * @param pair           USDC_EURC or EURC_USDC (from maker's perspective)
      * @param makerAmount    Amount to lock (approved beforehand)
      * @param bidCommitment  keccak256(abi.encodePacked(expectedTakerAmount)), or bytes32(0) for any amount
-     * @param encrypted      AES-GCM encrypted trade details for auditor
-     * @param viewKeyHash    keccak256(abi.encodePacked(viewKey))
+     * @param encrypted      AES-GCM encrypted maker trade details for auditor
+     * @param makerViewKeyHash keccak256(abi.encodePacked(makerViewKey))
      * @param preferredTaker address(0) = open market, else restricted to that address
      * @param expiresAt      Unix timestamp; must be within 7 days
      * @param rfqRef         Off-chain reference (e.g. "RFQ-2024-001")
@@ -121,7 +122,7 @@ contract UmbraOTC is ReentrancyGuard {
         uint256 makerAmount,
         bytes32 bidCommitment,
         bytes calldata encrypted,
-        bytes32 viewKeyHash,
+        bytes32 makerViewKeyHash,
         address preferredTaker,
         uint64 expiresAt,
         string calldata rfqRef
@@ -144,7 +145,7 @@ contract UmbraOTC is ReentrancyGuard {
         t.createdAt = uint64(block.timestamp);
         t.bidCommitment = bidCommitment;
         t.makerEncrypted = encrypted;
-        t.viewKeyHash = viewKeyHash;
+        t.makerViewKeyHash = makerViewKeyHash;
         t.rfqRef = rfqRef;
 
         _makerLocked[id] = makerAmount;
@@ -163,11 +164,13 @@ contract UmbraOTC is ReentrancyGuard {
      * @param id             Trade to match
      * @param takerAmount    Amount the taker is locking
      * @param takerEncrypted AES-GCM encrypted taker details for auditor
+     * @param takerViewKeyHash keccak256(abi.encodePacked(takerViewKey))
      */
     function matchRFQ(
         uint256 id,
         uint256 takerAmount,
-        bytes calldata takerEncrypted
+        bytes calldata takerEncrypted,
+        bytes32 takerViewKeyHash
     ) external {
         Trade storage t = trades[id];
         if (t.status != TradeStatus.OPEN) revert TradeNotOpen();
@@ -185,6 +188,7 @@ contract UmbraOTC is ReentrancyGuard {
 
         t.taker = msg.sender;
         t.takerEncrypted = takerEncrypted;
+        t.takerViewKeyHash = takerViewKeyHash;
         t.status = TradeStatus.MATCHED;
 
         _takerLocked[id] = takerAmount;
@@ -291,7 +295,9 @@ contract UmbraOTC is ReentrancyGuard {
     }
 
     function verifyViewKey(uint256 id, bytes32 viewKey) external view returns (bool) {
-        return keccak256(abi.encodePacked(viewKey)) == trades[id].viewKeyHash;
+        bytes32 keyHash = keccak256(abi.encodePacked(viewKey));
+        Trade storage t = trades[id];
+        return keyHash == t.makerViewKeyHash || keyHash == t.takerViewKeyHash;
     }
 
     // ─── Views ───────────────────────────────────────────────────────────────

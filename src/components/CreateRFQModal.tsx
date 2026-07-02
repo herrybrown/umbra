@@ -7,6 +7,7 @@ import {
   generateViewKey,
   viewKeyHash as hashViewKey,
   encryptDetails,
+  saveKit,
 } from "@/lib/crypto";
 import { parseAmount } from "@/lib/utils";
 import { useCreateRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
@@ -80,7 +81,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
       setStep("creating");
 
       const viewKey = generateViewKey();
-      const vkHash = hashViewKey(viewKey);
+      const makerViewKeyHash = hashViewKey(viewKey);
 
       const encrypted = await encryptDetails(
         {
@@ -97,16 +98,25 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
 
       const expiresAt = BigInt(Math.floor(Date.now() / 1000) + Number(expiryHours) * 3600);
 
-      await create({
+      const result = await create({
         pair,
         makerAmount: parsedMakerAmount,
         bidCommitment,
         encrypted: encrypted as `0x${string}`,
-        viewKeyHash: vkHash,
+        makerViewKeyHash,
         preferredTaker: (preferredTaker as `0x${string}`) || "0x0000000000000000000000000000000000000000",
         expiresAt,
         rfqRef,
       });
+
+      if (result.tradeId !== null) {
+        saveKit({
+          tradeId: Number(result.tradeId),
+          amount: parsedMakerAmount.toString(),
+          viewKey,
+          role: "maker",
+        });
+      }
 
       setViewKeyCopy(viewKey);
       setStep("done");

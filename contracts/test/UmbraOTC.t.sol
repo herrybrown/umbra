@@ -52,21 +52,15 @@ contract UmbraOTCTest is Test {
 
     address maker = address(0x1);
     address taker = address(0x2);
-    address auditor = address(0x3);
     address stranger = address(0x4);
 
-    // $1M USDC (6 decimals)
     uint256 constant MAKER_AMOUNT = 1_000_000e6;
-    // €920k EURC — ~1.087 implied rate
     uint256 constant TAKER_AMOUNT = 920_000e6;
 
-    bytes32 makerSalt = bytes32(uint256(0xABCD));
-    bytes32 takerSalt = bytes32(uint256(0xDEAD));
-    bytes32 viewKey = bytes32(uint256(0xBEEF));
-
-    bytes32 makerCommitment;
-    bytes32 takerCommitment;
-    bytes32 viewKeyHash;
+    bytes32 makerViewKey = bytes32(uint256(0xBEEF));
+    bytes32 takerViewKey = bytes32(uint256(0xCAFE));
+    bytes32 makerViewKeyHash;
+    bytes32 takerViewKeyHash;
 
     bytes constant MAKER_ENCRYPTED = hex"deadbeef01";
     bytes constant TAKER_ENCRYPTED = hex"deadbeef02";
@@ -78,9 +72,8 @@ contract UmbraOTCTest is Test {
         eurc = new MockERC20("Euro Coin", "EURC");
         otc = new UmbraOTC(address(usdc), address(eurc));
 
-        makerCommitment = keccak256(abi.encodePacked(MAKER_AMOUNT, makerSalt));
-        takerCommitment = keccak256(abi.encodePacked(TAKER_AMOUNT, takerSalt));
-        viewKeyHash = keccak256(abi.encodePacked(viewKey));
+        makerViewKeyHash = keccak256(abi.encodePacked(makerViewKey));
+        takerViewKeyHash = keccak256(abi.encodePacked(takerViewKey));
 
         expiry = uint64(block.timestamp + 4 hours);
 
@@ -94,15 +87,14 @@ contract UmbraOTCTest is Test {
         eurc.approve(address(otc), type(uint256).max);
     }
 
-    // ─── createRFQ ───────────────────────────────────────────────────────────
-
     function test_CreateRFQ() public {
         vm.prank(maker);
         uint256 id = otc.createRFQ(
             UmbraOTC.TokenPair.USDC_EURC,
-            makerCommitment,
+            MAKER_AMOUNT,
+            bytes32(0),
             MAKER_ENCRYPTED,
-            viewKeyHash,
+            makerViewKeyHash,
             address(0),
             expiry,
             "RFQ-001"
@@ -113,8 +105,8 @@ contract UmbraOTCTest is Test {
 
         UmbraOTC.Trade memory t = otc.getTrade(0);
         assertEq(t.maker, maker);
-        assertEq(t.makerCommitment, makerCommitment);
-        assertEq(t.viewKeyHash, viewKeyHash);
+        assertEq(t.makerViewKeyHash, makerViewKeyHash);
+        assertEq(t.takerViewKeyHash, bytes32(0));
         assertEq(uint8(t.status), uint8(UmbraOTC.TradeStatus.OPEN));
         assertEq(t.rfqRef, "RFQ-001");
     }
@@ -124,28 +116,45 @@ contract UmbraOTCTest is Test {
         vm.expectRevert(UmbraOTC.InvalidExpiry.selector);
         otc.createRFQ(
             UmbraOTC.TokenPair.USDC_EURC,
-            makerCommitment,
+            MAKER_AMOUNT,
+            bytes32(0),
             MAKER_ENCRYPTED,
-            viewKeyHash,
+            makerViewKeyHash,
             address(0),
-            uint64(block.timestamp), // already expired
+            uint64(block.timestamp),
             "RFQ-001"
         );
     }
-
-    // ─── matchRFQ ────────────────────────────────────────────────────────────
 
     function test_MatchRFQ() public {
         _createDefaultRFQ();
 
         vm.prank(taker);
-        otc.matchRFQ(0, takerCommitment, TAKER_ENCRYPTED);
+        otc.matchRFQ(0, TAKER_AMOUNT, TAKER_ENCRYPTED, takerViewKeyHash);
 
         UmbraOTC.Trade memory t = otc.getTrade(0);
         assertEq(t.taker, taker);
-        assertEq(t.takerCommitment, takerCommitment);
+        assertEq(t.takerViewKeyHash, takerViewKeyHash);
         assertEq(uint8(t.status), uint8(UmbraOTC.TradeStatus.MATCHED));
-        assertEq(otc.openCount(), 0); // removed from open list
+        assertEq(otc.openCount(), 0);
+    }
+
+    function test_MatchRFQ_BidCommitmentEnforced() public {
+        vm.prank(maker);
+        otc.createRFQ(
+            UmbraOTC.TokenPair.USDC_EURC,
+            MAKER_AMOUNT,
+            keccak256(abi.encodePacked(TAKER_AMOUNT)),
+            MAKER_ENCRYPTED,
+            makerViewKeyHash,
+            address(0),
+            expiry,
+            "RFQ-001"
+        );
+
+        vm.prank(taker);
+        vm.expectRevert(UmbraOTC.BidMismatch.selector);
+        otc.matchRFQ(0, TAKER_AMOUNT + 1, TAKER_ENCRYPTED, takerViewKeyHash);
     }
 
     function test_MatchRFQ_SelfTradeReverts() public {
@@ -153,79 +162,58 @@ contract UmbraOTCTest is Test {
 
         vm.prank(maker);
         vm.expectRevert(UmbraOTC.SelfTrade.selector);
-        otc.matchRFQ(0, takerCommitment, TAKER_ENCRYPTED);
+        otc.matchRFQ(0, TAKER_AMOUNT, TAKER_ENCRYPTED, takerViewKeyHash);
     }
 
     function test_MatchRFQ_PreferredTakerEnforced() public {
         vm.prank(maker);
         otc.createRFQ(
             UmbraOTC.TokenPair.USDC_EURC,
-            makerCommitment,
+            MAKER_AMOUNT,
+            bytes32(0),
             MAKER_ENCRYPTED,
-            viewKeyHash,
-            taker, // preferred taker
+            makerViewKeyHash,
+            taker,
             expiry,
             "RFQ-002"
         );
 
         vm.prank(stranger);
         vm.expectRevert(UmbraOTC.WrongTaker.selector);
-        otc.matchRFQ(0, takerCommitment, TAKER_ENCRYPTED);
+        otc.matchRFQ(0, TAKER_AMOUNT, TAKER_ENCRYPTED, takerViewKeyHash);
     }
-
-    // ─── settle ──────────────────────────────────────────────────────────────
 
     function test_SettleUSDCToEURC() public {
         _createAndMatchRFQ();
 
         uint256 makerUsdcBefore = usdc.balanceOf(maker);
+        uint256 makerEurcBefore = eurc.balanceOf(maker);
+        uint256 takerUsdcBefore = usdc.balanceOf(taker);
         uint256 takerEurcBefore = eurc.balanceOf(taker);
+        uint256 contractUsdcBefore = usdc.balanceOf(address(otc));
+        uint256 contractEurcBefore = eurc.balanceOf(address(otc));
 
         vm.prank(maker);
-        otc.settle(0, MAKER_AMOUNT, makerSalt, TAKER_AMOUNT, takerSalt);
+        otc.settle(0);
 
         UmbraOTC.Trade memory t = otc.getTrade(0);
         assertEq(uint8(t.status), uint8(UmbraOTC.TradeStatus.SETTLED));
-        assertEq(t.makerAmount, MAKER_AMOUNT);
-        assertEq(t.takerAmount, TAKER_AMOUNT);
 
-        // Maker sent USDC, received EURC
-        assertEq(usdc.balanceOf(maker), makerUsdcBefore - MAKER_AMOUNT);
-        assertEq(eurc.balanceOf(maker), TAKER_AMOUNT);
-
-        // Taker sent EURC, received USDC
-        assertEq(eurc.balanceOf(taker), takerEurcBefore - TAKER_AMOUNT);
-        assertEq(usdc.balanceOf(taker), MAKER_AMOUNT);
+        assertEq(usdc.balanceOf(maker), makerUsdcBefore);
+        assertEq(eurc.balanceOf(maker), makerEurcBefore + TAKER_AMOUNT);
+        assertEq(eurc.balanceOf(taker), takerEurcBefore);
+        assertEq(usdc.balanceOf(taker), takerUsdcBefore + MAKER_AMOUNT);
+        assertEq(usdc.balanceOf(address(otc)), contractUsdcBefore - MAKER_AMOUNT);
+        assertEq(eurc.balanceOf(address(otc)), contractEurcBefore - TAKER_AMOUNT);
     }
 
-    function test_SettleBadMakerCommitmentReverts() public {
+    function test_SettleOnlyMaker() public {
         _createAndMatchRFQ();
 
-        vm.prank(maker);
-        vm.expectRevert(UmbraOTC.BadCommitment.selector);
-        // wrong amount — commitment check fails
-        otc.settle(0, MAKER_AMOUNT + 1, makerSalt, TAKER_AMOUNT, takerSalt);
-    }
-
-    function test_SettleBadTakerCommitmentReverts() public {
-        _createAndMatchRFQ();
-
-        vm.prank(maker);
-        vm.expectRevert(UmbraOTC.BadCommitment.selector);
-        otc.settle(0, MAKER_AMOUNT, makerSalt, TAKER_AMOUNT + 1, takerSalt);
-    }
-
-    function test_SettleByEitherParty() public {
-        _createAndMatchRFQ();
-
-        // Taker can also trigger settlement
         vm.prank(taker);
-        otc.settle(0, MAKER_AMOUNT, makerSalt, TAKER_AMOUNT, takerSalt);
-
-        assertEq(uint8(otc.getTrade(0).status), uint8(UmbraOTC.TradeStatus.SETTLED));
+        vm.expectRevert(UmbraOTC.NotMaker.selector);
+        otc.settle(0);
     }
-
-    // ─── cancel ──────────────────────────────────────────────────────────────
 
     function test_CancelOpen() public {
         _createDefaultRFQ();
@@ -235,26 +223,27 @@ contract UmbraOTCTest is Test {
 
         assertEq(uint8(otc.getTrade(0).status), uint8(UmbraOTC.TradeStatus.CANCELLED));
         assertEq(otc.openCount(), 0);
+        assertEq(usdc.balanceOf(maker), 2_000_000e6);
     }
 
-    function test_CancelMatched_ByEitherParty() public {
+    function test_CancelMatchedReturnsBothSides() public {
         _createAndMatchRFQ();
 
-        vm.prank(taker);
+        vm.prank(maker);
         otc.cancel(0);
 
         assertEq(uint8(otc.getTrade(0).status), uint8(UmbraOTC.TradeStatus.CANCELLED));
+        assertEq(usdc.balanceOf(maker), 2_000_000e6);
+        assertEq(eurc.balanceOf(taker), 2_000_000e6);
     }
 
     function test_CancelByStrangerReverts() public {
         _createDefaultRFQ();
 
         vm.prank(stranger);
-        vm.expectRevert(UmbraOTC.NotParty.selector);
+        vm.expectRevert(UmbraOTC.NotMaker.selector);
         otc.cancel(0);
     }
-
-    // ─── expire ──────────────────────────────────────────────────────────────
 
     function test_MarkExpired() public {
         _createDefaultRFQ();
@@ -273,24 +262,22 @@ contract UmbraOTCTest is Test {
         otc.markExpired(0);
     }
 
-    // ─── auditor ─────────────────────────────────────────────────────────────
+    function test_VerifyViewKeyForMakerAndTaker() public {
+        _createAndMatchRFQ();
 
-    function test_VerifyViewKey() public {
-        _createDefaultRFQ();
-
-        assertTrue(otc.verifyViewKey(0, viewKey));
+        assertTrue(otc.verifyViewKey(0, makerViewKey));
+        assertTrue(otc.verifyViewKey(0, takerViewKey));
         assertFalse(otc.verifyViewKey(0, bytes32(uint256(0x1234))));
     }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     function _createDefaultRFQ() internal {
         vm.prank(maker);
         otc.createRFQ(
             UmbraOTC.TokenPair.USDC_EURC,
-            makerCommitment,
+            MAKER_AMOUNT,
+            bytes32(0),
             MAKER_ENCRYPTED,
-            viewKeyHash,
+            makerViewKeyHash,
             address(0),
             expiry,
             "RFQ-001"
@@ -301,6 +288,6 @@ contract UmbraOTCTest is Test {
         _createDefaultRFQ();
 
         vm.prank(taker);
-        otc.matchRFQ(0, takerCommitment, TAKER_ENCRYPTED);
+        otc.matchRFQ(0, TAKER_AMOUNT, TAKER_ENCRYPTED, takerViewKeyHash);
     }
 }

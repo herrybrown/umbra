@@ -1,5 +1,5 @@
 export const UMBRA_OTC_ADDRESS = (process.env.NEXT_PUBLIC_UMBRA_ADDRESS ??
-  "0x2309620423d5b1dB1fDF41A4a6103428316729d3") as `0x${string}`;
+  "0xbe4Fd7e990F7eab9023192a1ABf0568478dEFb2c") as `0x${string}`;
 
 export const USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000" as `0x${string}`;
@@ -54,7 +54,8 @@ export const UMBRA_OTC_ABI = [
           { name: "bidCommitment", type: "bytes32" },
           { name: "makerEncrypted", type: "bytes" },
           { name: "takerEncrypted", type: "bytes" },
-          { name: "viewKeyHash", type: "bytes32" },
+          { name: "makerViewKeyHash", type: "bytes32" },
+          { name: "takerViewKeyHash", type: "bytes32" },
           { name: "rfqRef", type: "string" },
         ],
       },
@@ -100,7 +101,7 @@ export const UMBRA_OTC_ABI = [
       { name: "makerAmount", type: "uint256" },
       { name: "bidCommitment", type: "bytes32" },
       { name: "encrypted", type: "bytes" },
-      { name: "viewKeyHash", type: "bytes32" },
+      { name: "makerViewKeyHash", type: "bytes32" },
       { name: "preferredTaker", type: "address" },
       { name: "expiresAt", type: "uint64" },
       { name: "rfqRef", type: "string" },
@@ -115,6 +116,7 @@ export const UMBRA_OTC_ABI = [
       { name: "id", type: "uint256" },
       { name: "takerAmount", type: "uint256" },
       { name: "takerEncrypted", type: "bytes" },
+      { name: "takerViewKeyHash", type: "bytes32" },
     ],
     name: "matchRFQ",
     outputs: [],

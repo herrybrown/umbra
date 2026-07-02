@@ -31,6 +31,17 @@ async function awaitMined(config: Config, hash: `0x${string}`) {
   return receipt;
 }
 
+function findTradeCreatedId(
+  logs: readonly { topics: readonly `0x${string}`[] }[]
+): bigint | null {
+  for (const log of logs) {
+    if (log.topics.length >= 2) {
+      return BigInt(log.topics[1]);
+    }
+  }
+  return null;
+}
+
 // ─── Read hooks ──────────────────────────────────────────────────────────────
 
 export function useNextTradeId() {
@@ -159,7 +170,7 @@ export function useCreateRFQ() {
     makerAmount: bigint;
     bidCommitment: `0x${string}`;
     encrypted: `0x${string}`;
-    viewKeyHash: `0x${string}`;
+    makerViewKeyHash: `0x${string}`;
     preferredTaker: `0x${string}`;
     expiresAt: bigint;
     rfqRef: string;
@@ -174,14 +185,17 @@ export function useCreateRFQ() {
         args.makerAmount,
         args.bidCommitment,
         args.encrypted as `0x${string}`,
-        args.viewKeyHash,
+        args.makerViewKeyHash,
         args.preferredTaker,
         args.expiresAt,
         args.rfqRef,
       ],
     });
-    await awaitMined(config, hash);
-    return hash;
+    const receipt = await awaitMined(config, hash);
+    return {
+      hash,
+      tradeId: findTradeCreatedId(receipt.logs),
+    };
   };
 
   return { create, isPending, isConfirming, isSuccess, error, hash: data };
@@ -197,13 +211,19 @@ export function useMatchRFQ() {
     id: bigint;
     takerAmount: bigint;
     takerEncrypted: `0x${string}`;
+    takerViewKeyHash: `0x${string}`;
   }) => {
     await ensureArc();
     const hash = await writeContractAsync({
       address: UMBRA_OTC_ADDRESS,
       abi: UMBRA_OTC_ABI,
       functionName: "matchRFQ",
-      args: [args.id, args.takerAmount, args.takerEncrypted as `0x${string}`],
+      args: [
+        args.id,
+        args.takerAmount,
+        args.takerEncrypted as `0x${string}`,
+        args.takerViewKeyHash,
+      ],
     });
     await awaitMined(config, hash);
     return hash;
