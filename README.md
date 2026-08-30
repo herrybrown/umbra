@@ -39,7 +39,9 @@ The maker opens the trade and clicks **Settle Trade**. The contract atomically s
 
 ## Auditor access
 
-Every trade stores separate encrypted maker and taker disclosures: firm names, amounts, references, and timestamps. Each disclosure has its own view key.
+Finalized trades with both participants store separate encrypted maker and taker disclosures: firm names, amounts, references, and timestamps. Open trades, matched trades awaiting finalization, and trades finalized without a taker are not auditable.
+
+The maker view key is generated when the quote is posted. The taker view key is generated when the quote is taken. Each key is saved in that participant's browser and offered as an audit-kit download at that time. The keys are not stored onchain and cannot be recovered if both the browser copy and downloaded kit are lost.
 
 To give your auditor access:
 

@@ -78,8 +78,11 @@ export function RFQCard({
   const displayStatus = hasPassedExpiry ? 4 : trade.status;
   const hasBidCriteria = trade.bidCommitment !== ZERO_BYTES32;
   const hasTaker = trade.taker !== ZERO_ADDRESS;
+  const isFinalizedOnchain = [2, 3, 4].includes(trade.status);
+  const isAuditEligible = isFinalizedOnchain && hasTaker;
   const participantRole = isMaker ? "maker" : isTaker ? "taker" : null;
   const auditKit = participantRole ? loadKit(Number(trade.id), participantRole) : null;
+  const canFinalizeExpiry = hasPassedExpiry && isMaker && !!onExpire;
 
   useEffect(() => {
     setNow(Math.floor(Date.now() / 1000));
@@ -90,7 +93,7 @@ export function RFQCard({
   }, []);
 
   async function handleExpire() {
-    if (!onExpire || isFinalizingExpiry) return;
+    if (!isMaker || !onExpire || isFinalizingExpiry) return;
     setExpiryError("");
     setIsFinalizingExpiry(true);
     try {
@@ -246,7 +249,7 @@ export function RFQCard({
             Tokens locked — waiting for maker to settle
           </div>
         )}
-        {hasPassedExpiry && onExpire && (
+        {canFinalizeExpiry && (
           <button
             type="button"
             onClick={handleExpire}
@@ -258,15 +261,13 @@ export function RFQCard({
         )}
         {!isActive &&
           !isAwaitingClock &&
-          !(hasPassedExpiry && onExpire) && (
+          !canFinalizeExpiry && (
           <div className="flex-1 text-center text-xs text-arc-muted py-2">
             {isSettled
               ? "Trade settled"
               : isCancelled
               ? "Trade cancelled"
-              : isExpired && !hasPassedExpiry
-              ? "Trade expired"
-              : !onExpire && isExpired
+              : isExpired
               ? "Trade expired"
               : "No further action"}
           </div>
@@ -280,7 +281,15 @@ export function RFQCard({
       )}
 
       {participantRole && auditKit && (
-        <AuditAccessPanel tradeId={trade.id} kit={auditKit} />
+        <AuditAccessPanel
+          tradeId={trade.id}
+          kit={auditKit}
+          isAuditEligible={isAuditEligible}
+        />
+      )}
+
+      {participantRole && !auditKit && (
+        <MissingAuditKitPanel role={participantRole} />
       )}
     </div>
   );
@@ -289,9 +298,11 @@ export function RFQCard({
 function AuditAccessPanel({
   tradeId,
   kit,
+  isAuditEligible,
 }: {
   tradeId: bigint;
   kit: SettlementKit;
+  isAuditEligible: boolean;
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareStatus, setShareStatus] = useState<
@@ -333,44 +344,51 @@ function AuditAccessPanel({
     <div className="mt-4 rounded-lg border border-settled/30 bg-settled/5 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-settled">Audit kit saved</div>
+          <div className="text-xs font-medium text-settled">
+            {kit.role === "maker" ? "Maker" : "Taker"} view key saved
+          </div>
           <div className="mt-0.5 text-[10px] uppercase text-arc-muted">
-            {kit.role} disclosure
+            Generated when the {kit.role === "maker" ? "quote was posted" : "quote was taken"}
           </div>
         </div>
-        <Link
-          href={`/audit?trade=${tradeId.toString()}`}
-          className="rounded-md bg-settled/15 px-3 py-1.5 text-xs font-medium text-settled transition-colors hover:bg-settled/25"
-        >
-          Open audit
-        </Link>
+        {isAuditEligible && (
+          <Link
+            href={`/audit?trade=${tradeId.toString()}`}
+            className="rounded-md bg-settled/15 px-3 py-1.5 text-xs font-medium text-settled transition-colors hover:bg-settled/25"
+          >
+            Open audit
+          </Link>
+        )}
       </div>
       <p className="mb-3 text-[11px] leading-relaxed text-arc-muted">
-        Send the trade link and this participant&apos;s private audit kit to an
-        authorized auditor. The secret is never placed in the URL.
+        {isAuditEligible
+          ? "Send the trade link and this private audit kit to an authorized auditor. The secret is never placed in the URL."
+          : "Keep a backup of this private key. Audit access becomes available after the trade is finalized with both participants."}
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={copyAuditLink}
-          className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
-        >
-          {copiedLink ? "Link copied" : "Copy audit link"}
-        </button>
-        <button
-          type="button"
-          onClick={shareAuditAccess}
-          className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
-        >
-          {shareStatus === "shared"
-            ? "Shared"
-            : shareStatus === "downloaded"
-            ? "Kit downloaded"
-            : shareStatus === "error"
-            ? "Share failed"
-            : "Share audit access"}
-        </button>
-      </div>
+      {isAuditEligible && (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={copyAuditLink}
+            className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+          >
+            {copiedLink ? "Link copied" : "Copy audit link"}
+          </button>
+          <button
+            type="button"
+            onClick={shareAuditAccess}
+            className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+          >
+            {shareStatus === "shared"
+              ? "Shared"
+              : shareStatus === "downloaded"
+              ? "Kit downloaded"
+              : shareStatus === "error"
+              ? "Share failed"
+              : "Share audit access"}
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => downloadSettlementKit(kit)}
@@ -378,6 +396,22 @@ function AuditAccessPanel({
       >
         Download audit kit
       </button>
+    </div>
+  );
+}
+
+function MissingAuditKitPanel({ role }: { role: "maker" | "taker" }) {
+  return (
+    <div className="mt-4 rounded-lg border border-matched/30 bg-matched/5 p-3">
+      <div className="text-xs font-medium text-matched">
+        {role === "maker" ? "Maker" : "Taker"} view key unavailable
+      </div>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-arc-muted">
+        This key was generated when the{" "}
+        {role === "maker" ? "quote was posted" : "quote was taken"} and is not
+        stored onchain. Restore it from the audit-kit file downloaded at that
+        time.
+      </p>
     </div>
   );
 }

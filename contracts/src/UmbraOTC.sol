@@ -260,7 +260,7 @@ contract UmbraOTC is ReentrancyGuard {
     }
 
     /**
-     * @notice Mark an OPEN or MATCHED trade as expired. Anyone may call after expiry.
+     * @notice Mark an OPEN or MATCHED trade as expired. Only the maker may call.
      *         Returns escrowed tokens to their owners.
      */
     function markExpired(uint256 id) external nonReentrant {
@@ -268,6 +268,7 @@ contract UmbraOTC is ReentrancyGuard {
         TradeStatus s = t.status;
 
         if (s != TradeStatus.OPEN && s != TradeStatus.MATCHED) revert AlreadyFinalized();
+        if (msg.sender != t.maker) revert NotMaker();
         if (block.timestamp < t.expiresAt) revert NotExpired();
 
         uint256 makerAmt = _makerLocked[id];

@@ -33,6 +33,7 @@ import {
 } from "@/lib/utils";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const FINALIZED_STATUSES = new Set([2, 3, 4]);
 const EVENT_TYPES = new Map<string, AuditEventType>([
   [
     toEventSelector("TradeCreated(uint256,address,uint8,uint64,string)"),
@@ -118,6 +119,11 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
       trade.takerViewKeyHash.toLowerCase();
   const hasTakerDisclosure =
     !!trade && trade.takerEncrypted !== "0x" && trade.taker !== ZERO_ADDRESS;
+  const hasMakerDisclosure =
+    !!trade && trade.makerEncrypted !== "0x" && trade.maker !== ZERO_ADDRESS;
+  const isFinalized = !!trade && FINALIZED_STATUSES.has(trade.status);
+  const isAuditable =
+    isFinalized && hasMakerDisclosure && hasTakerDisclosure;
   const takerUsesDecryptionAuthentication =
     !!trade && trade.contractVersion === "legacy" && hasTakerDisclosure;
   const takerKeyEligible =
@@ -311,7 +317,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
   }
 
   async function handleDecrypt() {
-    if (!trade) return;
+    if (!trade || !isAuditable) return;
 
     setDecryptErrors({});
     setIsDecrypting(true);
@@ -347,7 +353,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
   }
 
   function exportAuditRecord() {
-    if (!trade || !decrypted) return;
+    if (!trade || !decrypted || !isAuditable) return;
 
     const auditRecord = {
       format: "umbra-trade-audit",
@@ -413,7 +419,9 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
     );
   }
 
-  const canReveal = makerKeyMatches || (hasTakerDisclosure && takerKeyEligible);
+  const canReveal =
+    isAuditable &&
+    (makerKeyMatches || (hasTakerDisclosure && takerKeyEligible));
   const isComplete =
     !!decrypted?.maker && (!hasTakerDisclosure || !!decrypted?.taker);
 
@@ -459,10 +467,10 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
         </div>
 
         <div className="rounded-lg border border-arc-border bg-arc-card p-4 text-xs leading-relaxed text-arc-muted">
-          A complete matched-trade audit uses two keys: the maker key reveals
-          the maker disclosure and the taker key reveals the taker disclosure.
-          Each party controls its own key. External auditors can import shared
-          audit-kit files without connecting a wallet.
+          The maker key is created when the quote is posted. The taker key is
+          created when the quote is taken. Each participant receives their key
+          in a downloadable audit kit; the keys cannot be recovered from the
+          blockchain.
         </div>
       </aside>
 
@@ -470,9 +478,9 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
         <div className="rounded-lg border border-arc-border bg-arc-card p-5">
           <h2 className="mb-1 text-sm font-medium text-white">Audit access</h2>
           <p className="mb-5 text-xs text-arc-muted">
-            Participant keys are authenticated against their onchain
-            fingerprints when available. Legacy taker keys are authenticated by
-            successful disclosure decryption. Keys are used only in this browser.
+            Audit disclosure is available only after a trade is finalized with
+            both maker and taker disclosures. External auditors can import the
+            participant kits without connecting a wallet.
           </p>
 
           <div className="mb-4">
@@ -527,7 +535,15 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
             )}
           </div>
 
-          {trade && (
+          {trade && !isAuditable && (
+            <div className="rounded-lg border border-matched/30 bg-matched/10 p-3 text-xs leading-relaxed text-matched">
+              {isFinalized
+                ? "This finalized trade is not auditable because it does not contain both participant disclosures."
+                : "This trade is not auditable until it is finalized onchain with both a maker and a taker."}
+            </div>
+          )}
+
+          {trade && isAuditable && (
             <div className="grid gap-4 md:grid-cols-2">
               <KeyInput
                 role="maker"
@@ -562,14 +578,18 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleDecrypt}
-            disabled={!trade || !canReveal || isDecrypting}
-            className="mt-5 w-full rounded-lg bg-umbra-purple py-2.5 text-sm font-medium text-white transition-colors hover:bg-umbra-violet disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isDecrypting ? "Decrypting..." : "Reveal authenticated disclosures"}
-          </button>
+          {isAuditable && (
+            <button
+              type="button"
+              onClick={handleDecrypt}
+              disabled={!canReveal || isDecrypting}
+              className="mt-5 w-full rounded-lg bg-umbra-purple py-2.5 text-sm font-medium text-white transition-colors hover:bg-umbra-violet disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isDecrypting
+                ? "Decrypting..."
+                : "Reveal authenticated disclosures"}
+            </button>
+          )}
         </div>
 
         {isTradeError && shouldLoadTrade && !trade && (

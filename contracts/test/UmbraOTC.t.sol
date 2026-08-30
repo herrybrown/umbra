@@ -249,15 +249,26 @@ contract UmbraOTCTest is Test {
         _createDefaultRFQ();
 
         vm.warp(expiry + 1);
+        vm.prank(maker);
         otc.markExpired(0);
 
         assertEq(uint8(otc.getTrade(0).status), uint8(UmbraOTC.TradeStatus.EXPIRED));
         assertEq(otc.openCount(), 0);
     }
 
+    function test_MarkExpiredByStrangerReverts() public {
+        _createDefaultRFQ();
+
+        vm.warp(expiry + 1);
+        vm.prank(stranger);
+        vm.expectRevert(UmbraOTC.NotMaker.selector);
+        otc.markExpired(0);
+    }
+
     function test_MarkExpiredTooEarlyReverts() public {
         _createDefaultRFQ();
 
+        vm.prank(maker);
         vm.expectRevert(UmbraOTC.NotExpired.selector);
         otc.markExpired(0);
     }
