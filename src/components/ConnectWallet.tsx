@@ -27,7 +27,7 @@ export function ConnectWallet() {
   return (
     <button
       onClick={() => connect({ connector: connectors[0] })}
-      className="umbra-action px-4 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-white"
+      className="umbra-action px-4 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-action"
     >
       Connect Wallet
     </button>

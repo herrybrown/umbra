@@ -10,13 +10,29 @@ export const metadata: Metadata = {
     "Private OTC trading for USDC and EURC on Arc Testnet. Trade in size without showing your position.",
 };
 
+const themeScript = `
+  (function () {
+    try {
+      var theme = localStorage.getItem("umbra-theme");
+      if (theme !== "light" && theme !== "dark") theme = "dark";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    } catch (_) {
+      document.documentElement.dataset.theme = "dark";
+    }
+  })();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <Providers>
           <Navbar />

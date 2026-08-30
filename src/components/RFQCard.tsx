@@ -223,7 +223,7 @@ export function RFQCard({
         {isOpen && !isMaker && onMatch && (
           <button
             onClick={onMatch}
-            className="umbra-action flex-1 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-white"
+            className="umbra-action flex-1 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-action"
           >
             Take Quote
           </button>

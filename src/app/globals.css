@@ -5,8 +5,54 @@
 @tailwind utilities;
 
 :root {
-  --background: #070810;
-  --foreground: #ffffff;
+  color-scheme: dark;
+  --background: 7 8 16;
+  --foreground: 245 247 255;
+  --arc-dark: 7 8 16;
+  --arc-card: 13 15 26;
+  --arc-border: 38 42 63;
+  --arc-muted: 165 172 190;
+  --arc-text: 245 247 255;
+  --action-text: 255 255 255;
+  --umbra-purple: 124 58 237;
+  --umbra-violet: 109 40 217;
+  --umbra-indigo: 99 102 241;
+  --umbra-glow: 167 139 250;
+  --usdc: 96 165 250;
+  --eurc: 74 222 128;
+  --settled: 52 211 153;
+  --matched: 251 191 36;
+  --danger: 248 113 113;
+  --wormhole-ring: 139 92 246;
+  --wormhole-bright: 237 233 254;
+  --wormhole-accent: 99 102 241;
+  --wormhole-signal: 74 222 128;
+  --wormhole-opacity: 0.94;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: 244 246 251;
+  --foreground: 17 24 39;
+  --arc-dark: 244 246 251;
+  --arc-card: 255 255 255;
+  --arc-border: 203 210 224;
+  --arc-muted: 75 85 105;
+  --arc-text: 17 24 39;
+  --umbra-purple: 109 40 217;
+  --umbra-violet: 91 33 182;
+  --umbra-indigo: 67 56 202;
+  --umbra-glow: 109 40 217;
+  --usdc: 29 78 216;
+  --eurc: 21 128 61;
+  --settled: 4 120 87;
+  --matched: 146 64 14;
+  --danger: 185 28 28;
+  --wormhole-ring: 109 40 217;
+  --wormhole-bright: 76 29 149;
+  --wormhole-accent: 67 56 202;
+  --wormhole-signal: 21 128 61;
+  --wormhole-opacity: 0.48;
 }
 
 * {
@@ -14,8 +60,8 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -34,22 +80,22 @@ body {
 
 .umbra-wormhole__tunnel {
   position: absolute;
-  top: 42%;
-  left: 79%;
-  width: min(74vw, 68rem);
+  top: 48%;
+  left: 56%;
+  width: min(145vmax, 112rem);
   aspect-ratio: 1;
-  transform: translate3d(-50%, -50%, 0) rotate(-11deg) scaleX(1.18);
+  transform: translate3d(-50%, -50%, 0) rotate(-9deg) scaleX(1.12);
   transform-origin: center;
-  opacity: 0.72;
+  opacity: var(--wormhole-opacity);
   contain: layout paint style;
 }
 
 .umbra-wormhole__ring {
   position: absolute;
-  inset: 18%;
-  border: 1px solid rgba(139, 92, 246, 0.28);
-  border-right-color: rgba(221, 214, 254, 0.68);
-  border-bottom-color: rgba(79, 70, 229, 0.08);
+  inset: 20%;
+  border: 1px solid rgb(var(--wormhole-ring) / 0.42);
+  border-right-color: rgb(var(--wormhole-bright) / 0.88);
+  border-bottom-color: rgb(var(--wormhole-accent) / 0.14);
   border-left-color: transparent;
   border-radius: 50%;
   opacity: 0;
@@ -59,14 +105,14 @@ body {
 }
 
 .umbra-wormhole__ring:nth-child(2n) {
-  border-top-color: rgba(124, 58, 237, 0.12);
-  border-right-color: rgba(167, 139, 250, 0.5);
+  border-top-color: rgb(var(--wormhole-ring) / 0.2);
+  border-right-color: rgb(var(--wormhole-bright) / 0.66);
   animation-duration: 10.4s;
 }
 
 .umbra-wormhole__ring:nth-child(3n) {
   border-width: 2px 1px 1px;
-  border-top-color: rgba(61, 154, 96, 0.2);
+  border-top-color: rgb(var(--wormhole-signal) / 0.32);
   animation-duration: 11.6s;
 }
 
@@ -74,13 +120,13 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 10%;
+  width: 6%;
   aspect-ratio: 1;
-  border: 1px solid rgba(124, 58, 237, 0.65);
-  border-right-color: rgba(221, 214, 254, 0.9);
+  border: 1px solid rgb(var(--wormhole-ring) / 0.78);
+  border-right-color: rgb(var(--wormhole-bright) / 0.96);
   border-left-color: transparent;
   border-radius: 50%;
-  background: #070810;
+  background: rgb(var(--arc-dark));
   transform: translate3d(-50%, -50%, 0);
   will-change: transform, opacity;
   animation: umbra-core-breathe 3.6s ease-in-out infinite;
@@ -99,7 +145,7 @@ body {
   }
   100% {
     opacity: 0;
-    transform: translate3d(0, 0, 0) scale(1.72) rotate(155deg);
+    transform: translate3d(0, 0, 0) scale(1.92) rotate(165deg);
   }
 }
 
@@ -167,19 +213,93 @@ button:not(:disabled):active {
   }
 }
 
+.theme-toggle {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgb(var(--arc-border));
+  border-radius: 50%;
+  background: rgb(var(--arc-card) / 0.74);
+  color: rgb(var(--arc-text));
+  overflow: visible;
+}
+
+.theme-toggle__glyph {
+  display: grid;
+  place-items: center;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  transition: transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme="light"] .theme-toggle__glyph {
+  transform: translate3d(0, 0, 0) rotate(180deg);
+}
+
+:root.theme-shifting .umbra-wormhole__tunnel {
+  animation: umbra-theme-warp 680ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes umbra-theme-warp {
+  0% {
+    opacity: var(--wormhole-opacity);
+    transform: translate3d(-50%, -50%, 0) rotate(-9deg) scaleX(1.12) scale(1);
+  }
+  42% {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) rotate(16deg) scaleX(1.12) scale(1.14);
+  }
+  100% {
+    opacity: var(--wormhole-opacity);
+    transform: translate3d(-50%, -50%, 0) rotate(-9deg) scaleX(1.12) scale(1);
+  }
+}
+
+::view-transition-old(root) {
+  animation: umbra-theme-old 520ms ease-in both;
+}
+
+::view-transition-new(root) {
+  animation: umbra-theme-reveal 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes umbra-theme-old {
+  to {
+    opacity: 0.3;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes umbra-theme-reveal {
+  from {
+    clip-path: circle(0 at calc(100% - 8.75rem) 2rem);
+  }
+  to {
+    clip-path: circle(150% at calc(100% - 8.75rem) 2rem);
+  }
+}
+
 @media (max-width: 768px) {
   .umbra-wormhole__tunnel {
-    top: 30%;
-    left: 68%;
-    width: 120vw;
-    opacity: 0.38;
+    top: 38%;
+    left: 58%;
+    width: 190vmax;
+    opacity: 0.68;
+  }
+
+  :root[data-theme="light"] .umbra-wormhole__tunnel {
+    opacity: 0.34;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .umbra-wormhole__ring,
   .umbra-wormhole__core,
-  .umbra-action:active:not(:disabled)::after {
+  .umbra-action:active:not(:disabled)::after,
+  :root.theme-shifting .umbra-wormhole__tunnel,
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
     animation: none;
   }
 
@@ -207,22 +327,22 @@ button:not(:disabled):active {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1A1D2E;
+  background: rgb(var(--arc-border));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a2d40;
+  background: rgb(var(--arc-muted) / 0.65);
 }
 
 /* Selection */
 ::selection {
-  background: rgba(124, 58, 237, 0.3);
-  color: white;
+  background: rgb(var(--umbra-purple) / 0.28);
+  color: rgb(var(--arc-text));
 }
 
 /* Focus ring */
 :focus-visible {
-  outline: 2px solid rgba(124, 58, 237, 0.5);
+  outline: 2px solid rgb(var(--umbra-purple) / 0.58);
   outline-offset: 2px;
 }
 

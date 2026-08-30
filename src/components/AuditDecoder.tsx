@@ -583,7 +583,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
               type="button"
               onClick={handleDecrypt}
               disabled={!canReveal || isDecrypting}
-              className="umbra-action mt-5 w-full rounded-lg bg-umbra-purple py-2.5 text-sm font-medium text-white transition-colors hover:bg-umbra-violet disabled:cursor-not-allowed disabled:opacity-40"
+              className="umbra-action mt-5 w-full rounded-lg bg-umbra-purple py-2.5 text-sm font-medium text-action transition-colors hover:bg-umbra-violet disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isDecrypting
                 ? "Decrypting..."

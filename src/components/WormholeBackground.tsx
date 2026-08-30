@@ -1,4 +1,4 @@
-const RINGS = Array.from({ length: 8 }, (_, index) => index);
+const RINGS = Array.from({ length: 10 }, (_, index) => index);
 
 export function WormholeBackground() {
   return (

@@ -31,7 +31,7 @@ export default function Home() {
         <div className="flex items-center justify-center gap-4">
           <Link
             href="/desk"
-            className="umbra-action px-6 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium text-sm"
+            className="umbra-action px-6 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-action font-medium text-sm"
           >
             Open Trading Desk
           </Link>
@@ -181,7 +181,7 @@ export default function Home() {
         <div className="flex items-center justify-center gap-3">
           <Link
             href="/desk"
-            className="umbra-action inline-flex px-8 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium"
+            className="umbra-action inline-flex px-8 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-action font-medium"
           >
             Open Trading Desk
           </Link>
