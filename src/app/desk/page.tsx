@@ -44,7 +44,7 @@ export default function DeskPage() {
         <div>
           <h1 className="text-2xl font-semibold text-white mb-1">Trading Desk</h1>
           <p className="text-sm text-arc-muted">
-            Private FX · Amounts hidden until settlement
+            OTC FX · Selective audit disclosure
           </p>
         </div>
 
@@ -144,7 +144,6 @@ export default function DeskPage() {
         <CreateRFQModal
           onClose={() => setShowCreate(false)}
           onSuccess={() => {
-            setShowCreate(false);
             refetchOpen();
           }}
         />
@@ -155,7 +154,6 @@ export default function DeskPage() {
           id={matchTradeId}
           onClose={() => setMatchTradeId(null)}
           onSuccess={() => {
-            setMatchTradeId(null);
             refetchOpen();
           }}
         />

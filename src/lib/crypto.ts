@@ -102,7 +102,32 @@ export async function decryptDetails(
     ciphertext
   );
 
-  return JSON.parse(new TextDecoder().decode(plaintext)) as TradeDetails;
+  const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext));
+  if (!isTradeDetails(parsed)) {
+    throw new Error("Decrypted disclosure has an invalid format.");
+  }
+  return parsed;
+}
+
+function isTradeDetails(value: unknown): value is TradeDetails {
+  if (!value || typeof value !== "object") return false;
+
+  const details = value as Partial<TradeDetails>;
+  return (
+    typeof details.amount === "string" &&
+    /^\d+$/.test(details.amount) &&
+    (details.bidAmount === undefined ||
+      (typeof details.bidAmount === "string" &&
+        /^\d+$/.test(details.bidAmount))) &&
+    typeof details.institution === "string" &&
+    typeof details.ref === "string" &&
+    typeof details.currency === "string" &&
+    (details.takerCurrency === undefined ||
+      typeof details.takerCurrency === "string") &&
+    typeof details.ts === "number" &&
+    Number.isSafeInteger(details.ts) &&
+    details.ts >= 0
+  );
 }
 
 // ─── Local settlement kit storage ────────────────────────────────────────────
@@ -115,6 +140,16 @@ export interface SettlementKit {
 }
 
 const STORAGE_KEY = "umbra_settlement_kits";
+const VIEW_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+
+export function isViewKey(value: string): value is `0x${string}` {
+  return VIEW_KEY_PATTERN.test(value.trim());
+}
+
+export function normalizeViewKey(value: string): `0x${string}` | undefined {
+  const trimmed = value.trim();
+  return isViewKey(trimmed) ? (trimmed.toLowerCase() as `0x${string}`) : undefined;
+}
 
 export function saveKit(kit: SettlementKit): void {
   const kits = loadAllKits();
@@ -134,11 +169,53 @@ export function loadKit(
   return kits.find((k) => k.tradeId === tradeId && k.role === role) ?? null;
 }
 
-function loadAllKits(): SettlementKit[] {
+export function loadAllKits(): SettlementKit[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((kit): kit is SettlementKit => {
+      if (!kit || typeof kit !== "object") return false;
+      const candidate = kit as Partial<SettlementKit>;
+      return (
+        Number.isSafeInteger(candidate.tradeId) &&
+        typeof candidate.amount === "string" &&
+        (candidate.role === "maker" || candidate.role === "taker") &&
+        typeof candidate.viewKey === "string" &&
+        isViewKey(candidate.viewKey)
+      );
+    });
   } catch {
     return [];
   }
+}
+
+export function downloadSettlementKit(kit: SettlementKit): void {
+  const payload = {
+    format: "umbra-audit-kit",
+    version: 1,
+    tradeId: kit.tradeId,
+    role: kit.role,
+    amount: kit.amount,
+    viewKey: kit.viewKey,
+    warning: "This file contains a private audit key. Share it only with an authorized reviewer.",
+  };
+  downloadJson(`umbra-trade-${kit.tradeId}-${kit.role}-audit-kit.json`, payload);
+}
+
+export function downloadJson(filename: string, value: unknown): void {
+  const blob = new Blob([JSON.stringify(value, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

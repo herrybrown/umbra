@@ -8,6 +8,8 @@ import {
   viewKeyHash as hashViewKey,
   encryptDetails,
   saveKit,
+  downloadSettlementKit,
+  type SettlementKit,
 } from "@/lib/crypto";
 import { parseAmount } from "@/lib/utils";
 import { useCreateRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
@@ -38,7 +40,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
   const [expiryHours, setExpiryHours] = useState("4");
   const [step, setStep] = useState<"idle" | "approving" | "creating" | "done">("idle");
   const [error, setError] = useState("");
-  const [viewKeyCopy, setViewKeyCopy] = useState<string | null>(null);
+  const [createdKit, setCreatedKit] = useState<SettlementKit | null>(null);
 
   const pair: 0 | 1 = makerToken === USDC_ADDRESS ? 0 : 1;
   const makerSymbol = TOKENS.find((t) => t.address === makerToken)?.symbol ?? "USDC";
@@ -109,16 +111,18 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
         rfqRef,
       });
 
-      if (result.tradeId !== null) {
-        saveKit({
-          tradeId: Number(result.tradeId),
-          amount: parsedMakerAmount.toString(),
-          viewKey,
-          role: "maker",
-        });
+      if (result.tradeId === null) {
+        throw new Error("Quote was created, but its trade ID could not be read from the receipt.");
       }
 
-      setViewKeyCopy(viewKey);
+      const kit: SettlementKit = {
+        tradeId: Number(result.tradeId),
+        amount: parsedMakerAmount.toString(),
+        viewKey,
+        role: "maker",
+      };
+      saveKit(kit);
+      setCreatedKit(kit);
       setStep("done");
       onSuccess?.();
     } catch (err: unknown) {
@@ -128,28 +132,44 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     }
   }
 
-  if (step === "done" && viewKeyCopy) {
+  if (step === "done" && createdKit) {
     return (
       <Modal onClose={onClose}>
         <h2 className="text-lg font-semibold text-white mb-1">Quote posted</h2>
         <p className="text-sm text-arc-muted mb-5">
-          Your tokens are locked in escrow. Save your view key — share it with your auditor to decrypt trade details.
+          Your tokens are locked in escrow. Keep this audit kit so the maker
+          disclosure can be reviewed later.
         </p>
 
-        <div className="mb-5">
-          <CopyField label="View key (share with your auditor)" value={viewKeyCopy} />
+        <div className="mb-5 space-y-3">
+          <CopyField label="Trade ID" value={createdKit.tradeId.toString()} />
+          <CopyField
+            label="Maker view key"
+            value={createdKit.viewKey}
+          />
         </div>
 
         <div className="p-3 rounded-lg bg-matched/10 border border-matched/30 text-sm text-matched mb-5">
-          Wait for a taker to match your quote. Once matched, you can settle the trade at any time.
+          The key is saved in this browser. Download a backup before clearing
+          browser storage or moving to another device.
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full py-2.5 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium"
-        >
-          Done
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => downloadSettlementKit(createdKit)}
+            className="rounded-lg border border-arc-border py-2.5 text-sm font-medium text-white transition-colors hover:border-umbra-purple"
+          >
+            Download kit
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-umbra-purple py-2.5 font-medium text-white transition-colors hover:bg-umbra-violet"
+          >
+            Done
+          </button>
+        </div>
       </Modal>
     );
   }
@@ -158,7 +178,7 @@ export function CreateRFQModal({ onClose, onSuccess }: Props) {
     <Modal onClose={onClose}>
       <h2 className="text-lg font-semibold text-white mb-1">New quote</h2>
       <p className="text-sm text-arc-muted mb-5">
-        Amounts are kept private on-chain. Your tokens are locked in escrow on posting.
+        Amounts are omitted from quote cards. Your tokens are locked in escrow on posting.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">

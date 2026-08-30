@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAccount } from "wagmi";
 import {
   formatExpiry,
@@ -13,7 +14,11 @@ import {
   statusColor,
   cn,
 } from "@/lib/utils";
-import { loadKit } from "@/lib/crypto";
+import {
+  downloadSettlementKit,
+  loadKit,
+  type SettlementKit,
+} from "@/lib/crypto";
 
 interface Trade {
   id: bigint;
@@ -187,8 +192,8 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
         )}
       </div>
 
-      {isSettled && participantRole && auditKit && (
-        <AuditAccessPanel tradeId={trade.id} viewKey={auditKit.viewKey} />
+      {participantRole && auditKit && (
+        <AuditAccessPanel tradeId={trade.id} kit={auditKit} />
       )}
     </div>
   );
@@ -196,63 +201,49 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
 
 function AuditAccessPanel({
   tradeId,
-  viewKey,
+  kit,
 }: {
   tradeId: bigint;
-  viewKey: `0x${string}`;
+  kit: SettlementKit;
 }) {
-  const [copiedField, setCopiedField] = useState<"tradeId" | "viewKey" | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  async function copy(label: "tradeId" | "viewKey", value: string) {
-    await navigator.clipboard.writeText(value);
-    setCopiedField(label);
-    setTimeout(() => setCopiedField(null), 1500);
+  async function copyKey() {
+    await navigator.clipboard.writeText(kit.viewKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
     <div className="mt-4 rounded-lg border border-settled/30 bg-settled/5 p-3">
-      <div className="text-xs text-settled font-medium mb-3">Audit access</div>
-      <div className="space-y-2">
-        <AuditRow
-          label="Trade ID"
-          value={tradeId.toString()}
-          copied={copiedField === "tradeId"}
-          onCopy={() => copy("tradeId", tradeId.toString())}
-        />
-        <AuditRow
-          label="View Key"
-          value={viewKey}
-          copied={copiedField === "viewKey"}
-          onCopy={() => copy("viewKey", viewKey)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function AuditRow({
-  label,
-  value,
-  copied,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  return (
-    <div>
-      <div className="text-[10px] text-arc-muted uppercase tracking-wider mb-1">{label}</div>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap rounded border border-arc-border bg-arc-dark p-2 text-[11px] font-mono text-white">
-          {value}
-        </code>
-        <button
-          onClick={onCopy}
-          className="shrink-0 rounded border border-arc-border px-2 py-1 text-xs text-arc-muted transition-colors hover:text-white"
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium text-settled">Audit kit saved</div>
+          <div className="mt-0.5 text-[10px] uppercase text-arc-muted">
+            {kit.role} disclosure
+          </div>
+        </div>
+        <Link
+          href={`/audit?trade=${tradeId.toString()}`}
+          className="rounded-md bg-settled/15 px-3 py-1.5 text-xs font-medium text-settled transition-colors hover:bg-settled/25"
         >
-          {copied ? "Copied" : "Copy"}
+          Open audit
+        </Link>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={copyKey}
+          className="flex-1 rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+        >
+          {copied ? "Key copied" : "Copy key"}
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadSettlementKit(kit)}
+          className="flex-1 rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+        >
+          Download kit
         </button>
       </div>
     </div>

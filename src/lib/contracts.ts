@@ -1,5 +1,8 @@
 export const UMBRA_OTC_ADDRESS = (process.env.NEXT_PUBLIC_UMBRA_ADDRESS ??
   "0xbe4Fd7e990F7eab9023192a1ABf0568478dEFb2c") as `0x${string}`;
+export const UMBRA_OTC_DEPLOYMENT_BLOCK = BigInt(
+  process.env.NEXT_PUBLIC_UMBRA_DEPLOYMENT_BLOCK ?? "49831414"
+);
 
 export const USDC_ADDRESS =
   "0x3600000000000000000000000000000000000000" as `0x${string}`;

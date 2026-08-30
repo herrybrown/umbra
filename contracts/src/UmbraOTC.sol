@@ -9,14 +9,15 @@ import {IERC20} from "./interfaces/IERC20.sol";
  * @notice Dark-pool OTC desk on Arc Testnet.
  *
  * Trade lifecycle:
- *   OPEN     → maker locks their tokens in escrow; amounts never stored in public state
+ *   OPEN     → maker locks their tokens in escrow; getTrade() omits escrow amounts
  *   MATCHED  → taker locks their tokens; bid commitment verified if set by maker
  *   SETTLED  → maker triggers atomic swap of escrowed tokens
  *   CANCELLED / EXPIRED → escrowed tokens returned to their owners
  *
- * Privacy model:
- *   - Token amounts are stored in private contract mappings; getTrade() exposes none
- *   - Only the encrypted blob (keyed by viewKey) reveals amounts to auditors
+ * Disclosure model:
+ *   - Token amounts are stored in private Solidity mappings; getTrade() exposes none
+ *   - Transaction calldata and raw storage remain observable on a public EVM chain
+ *   - Encrypted participant blobs support selective disclosure in the audit client
  *   - bidCommitment lets maker enforce an exact taker bid for open-market quotes,
  *     with the expected amount shared off-chain via the RFQ process
  */
@@ -107,7 +108,8 @@ contract UmbraOTC is ReentrancyGuard {
 
     /**
      * @notice Create a new RFQ and lock the maker's tokens in escrow.
-     *         The locked amount is never stored in public state.
+     *         The locked amount is omitted from getTrade(), but remains visible
+     *         in transaction calldata on a public EVM chain.
      * @param pair           USDC_EURC or EURC_USDC (from maker's perspective)
      * @param makerAmount    Amount to lock (approved beforehand)
      * @param bidCommitment  keccak256(abi.encodePacked(expectedTakerAmount)), or bytes32(0) for any amount

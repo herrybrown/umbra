@@ -15,17 +15,17 @@ export default function Home() {
         </div>
 
         <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight mb-6 leading-tight">
-          OTC trading where your
+          OTC settlement with
           <br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-umbra-glow to-umbra-indigo">
-            book stays private.
+            selective disclosure.
           </span>
         </h1>
 
         <p className="text-lg text-arc-muted max-w-xl mx-auto mb-10 leading-relaxed">
           Umbra lets institutions trade USDC and EURC in size without
-          exposing amounts publicly. Agree on terms privately, settle
-          on Arc, give your auditor a key.
+          displaying amounts in the open market interface. Agree on terms, settle
+          on Arc, give your auditor the participant keys they are authorized to use.
         </p>
 
         <div className="flex items-center justify-center gap-4">
@@ -48,12 +48,12 @@ export default function Home() {
       <div className="mb-20">
         <div className="rounded-2xl border border-danger/20 bg-danger/5 p-8 text-center">
           <h2 className="text-xl font-semibold text-white mb-3">
-            Public chains have a position problem
+            Application privacy is not chain privacy
           </h2>
           <p className="text-arc-muted max-w-2xl mx-auto">
-            The moment you put a large USDC order on the blockchain, every trader in the market
-            sees it. That information moves prices before your trade settles. Umbra keeps
-            the size hidden until both sides are already locked in.
+            Umbra omits amounts from quote cards and encrypts participant audit
+            disclosures. Arc remains a public EVM network, so transaction calldata
+            can still be inspected onchain.
           </p>
         </div>
       </div>
@@ -70,7 +70,7 @@ export default function Home() {
               step: "01",
               title: "Post a quote",
               description:
-                "You set the direction and the amount you want to trade. The size stays private. Your counterparty learns the details from you directly.",
+                "You set the direction and amount. The size stays off the market card while your participant disclosure is encrypted for later audit.",
               icon: "◈",
               color: "umbra-purple",
             },
@@ -78,7 +78,7 @@ export default function Home() {
               step: "02",
               title: "Agree terms",
               description:
-                "The other party accepts your quote and locks in at the rate you both agreed. Neither amount is visible to anyone else on the network.",
+                "The other party accepts your quote and locks in at the rate you both agreed. Each side receives a separate audit key.",
               icon: "⟷",
               color: "matched",
             },
@@ -86,7 +86,7 @@ export default function Home() {
               step: "03",
               title: "Settle",
               description:
-                "Either party triggers settlement. Both sides are verified and the swap executes. No custody risk, no partial fills.",
+                "The maker triggers settlement. Both escrowed sides swap atomically with no partial fill.",
               icon: "✓",
               color: "settled",
             },
@@ -124,14 +124,14 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-6">
           {[
             {
-              title: "Hidden trade sizes",
+              title: "Controlled disclosure",
               description:
-                "Amounts are sealed before any public record exists. They only become visible once both parties are locked in. You cannot front-run a number you cannot see.",
+                "Trade cards omit amounts while encrypted maker and taker records support participant-controlled audit access.",
             },
             {
               title: "Auditor access",
               description:
-                "Trade details are encrypted and stored on the blockchain. Share a view key with your compliance team or regulator and they can read everything: amounts, firm names, timestamps.",
+                "Maker and taker disclosures are encrypted separately and stored on the blockchain. Each participant can share their own view key with a compliance team or regulator.",
             },
             {
               title: "Native FX on Arc",
@@ -146,12 +146,12 @@ export default function Home() {
             {
               title: "Open market or private",
               description:
-                "Post a quote for anyone to take, or send it directly to a specific wallet address. The size stays private until settlement either way.",
+                "Post a quote for anyone to take, or restrict it to a specific wallet address. The amount stays off the quote card either way.",
             },
             {
               title: "Permanent record",
               description:
-                "Every trade is recorded on Arc permanently: the sealed amounts, the settlement, the timestamps. Share the view key with an auditor whenever you need and they can read everything.",
+                "Every trade is recorded on Arc permanently. One participant key reveals one side; both keys assemble the complete matched-trade audit record.",
             },
           ].map(({ title, description }) => (
             <div

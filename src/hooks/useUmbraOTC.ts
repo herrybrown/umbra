@@ -10,8 +10,13 @@ import {
 } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import type { Config } from "wagmi";
+import { toEventSelector } from "viem";
 import { UMBRA_OTC_ABI, UMBRA_OTC_ADDRESS, ERC20_ABI, USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 import { arcTestnet } from "@/lib/chains";
+
+const TRADE_CREATED_TOPIC = toEventSelector(
+  "TradeCreated(uint256,address,uint8,uint64,string)"
+);
 
 function useEnsureArcChain() {
   const { chainId } = useAccount();
@@ -32,10 +37,17 @@ async function awaitMined(config: Config, hash: `0x${string}`) {
 }
 
 function findTradeCreatedId(
-  logs: readonly { topics: readonly `0x${string}`[] }[]
+  logs: readonly {
+    address: `0x${string}`;
+    topics: readonly `0x${string}`[];
+  }[]
 ): bigint | null {
   for (const log of logs) {
-    if (log.topics.length >= 2) {
+    if (
+      log.address.toLowerCase() === UMBRA_OTC_ADDRESS.toLowerCase() &&
+      log.topics[0] === TRADE_CREATED_TOPIC &&
+      log.topics.length >= 2
+    ) {
       return BigInt(log.topics[1]);
     }
   }
