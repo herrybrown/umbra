@@ -139,6 +139,13 @@ export interface SettlementKit {
   role: "maker" | "taker";
 }
 
+interface SettlementKitPayload extends SettlementKit {
+  format: "umbra-audit-kit";
+  version: 1;
+  auditUrl: string;
+  warning: string;
+}
+
 const STORAGE_KEY = "umbra_settlement_kits";
 const VIEW_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
@@ -193,17 +200,37 @@ export function loadAllKits(): SettlementKit[] {
   }
 }
 
-export function downloadSettlementKit(kit: SettlementKit): void {
-  const payload = {
+export function auditUrlForTrade(tradeId: number | bigint): string {
+  const path = `/audit?trade=${tradeId.toString()}`;
+  return typeof window === "undefined"
+    ? path
+    : new URL(path, window.location.origin).toString();
+}
+
+function settlementKitPayload(kit: SettlementKit): SettlementKitPayload {
+  return {
     format: "umbra-audit-kit",
     version: 1,
-    tradeId: kit.tradeId,
-    role: kit.role,
-    amount: kit.amount,
-    viewKey: kit.viewKey,
+    ...kit,
+    auditUrl: auditUrlForTrade(kit.tradeId),
     warning: "This file contains a private audit key. Share it only with an authorized reviewer.",
   };
-  downloadJson(`umbra-trade-${kit.tradeId}-${kit.role}-audit-kit.json`, payload);
+}
+
+function settlementKitFilename(kit: SettlementKit): string {
+  return `umbra-trade-${kit.tradeId}-${kit.role}-audit-kit.json`;
+}
+
+export function createSettlementKitFile(kit: SettlementKit): File {
+  return new File(
+    [JSON.stringify(settlementKitPayload(kit), null, 2)],
+    settlementKitFilename(kit),
+    { type: "application/json" }
+  );
+}
+
+export function downloadSettlementKit(kit: SettlementKit): void {
+  downloadJson(settlementKitFilename(kit), settlementKitPayload(kit));
 }
 
 export function downloadJson(filename: string, value: unknown): void {

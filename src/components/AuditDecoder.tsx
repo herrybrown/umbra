@@ -87,12 +87,19 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
 
   const tradeId = parseTradeId(tradeIdStr);
   const { data: nextTradeId } = useNextTradeId();
-  const tradeExists =
+  const tradeIsKnownMissing =
     tradeId !== undefined &&
     nextTradeId !== undefined &&
-    tradeId < nextTradeId;
-  const { data: trade, isLoading: isTradeLoading } = useTrade(
-    tradeExists ? tradeId : undefined
+    tradeId >= nextTradeId;
+  const shouldLoadTrade = tradeId !== undefined && !tradeIsKnownMissing;
+  const {
+    data: trade,
+    isLoading: isTradeLoading,
+    isError: isTradeError,
+    error: tradeError,
+    refetch: refetchTrade,
+  } = useTrade(
+    shouldLoadTrade ? tradeId : undefined
   );
   const { data: makerIds = [] } = useMakerTrades(address);
   const { data: takerIds = [] } = useTakerTrades(address);
@@ -111,6 +118,11 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
       trade.takerViewKeyHash.toLowerCase();
   const hasTakerDisclosure =
     !!trade && trade.takerEncrypted !== "0x" && trade.taker !== ZERO_ADDRESS;
+  const takerUsesDecryptionAuthentication =
+    !!trade && trade.contractVersion === "legacy" && hasTakerDisclosure;
+  const takerKeyEligible =
+    !!takerViewKey &&
+    (takerUsesDecryptionAuthentication || takerKeyMatches);
 
   const myTrades = useMemo(() => {
     const roles = new Map<string, Set<Role>>();
@@ -150,7 +162,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
   }, [address, trade]);
 
   useEffect(() => {
-    if (!tradeExists || tradeId === undefined) {
+    if (!shouldLoadTrade || tradeId === undefined) {
       setAuditEvents([]);
       setEventsError("");
       setEventsLoading(false);
@@ -231,7 +243,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
     return () => {
       cancelled = true;
     };
-  }, [tradeExists, tradeId]);
+  }, [shouldLoadTrade, tradeId]);
 
   function selectTrade(id: bigint) {
     const value = id.toString();
@@ -318,7 +330,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
       }
     }
 
-    if (takerKeyMatches && takerViewKey && hasTakerDisclosure) {
+    if (takerKeyEligible && takerViewKey && hasTakerDisclosure) {
       try {
         results.taker = await decryptDetails(
           trade.takerEncrypted,
@@ -348,6 +360,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
       },
       trade: {
         id: trade.id.toString(),
+        contractVersion: trade.contractVersion,
         maker: trade.maker,
         taker: trade.taker,
         pair: pairLabel(trade.pair),
@@ -374,12 +387,20 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
         maker: decrypted.maker
           ? {
               keyHash: trade.makerViewKeyHash,
+              authentication: "onchain-key-hash",
               details: decrypted.maker,
             }
           : null,
         taker: decrypted.taker
           ? {
-              keyHash: trade.takerViewKeyHash,
+              keyHash:
+                trade.contractVersion === "legacy"
+                  ? null
+                  : trade.takerViewKeyHash,
+              authentication:
+                trade.contractVersion === "legacy"
+                  ? "aes-gcm-decryption"
+                  : "onchain-key-hash",
               details: decrypted.taker,
             }
           : null,
@@ -392,7 +413,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
     );
   }
 
-  const canReveal = makerKeyMatches || (hasTakerDisclosure && takerKeyMatches);
+  const canReveal = makerKeyMatches || (hasTakerDisclosure && takerKeyEligible);
   const isComplete =
     !!decrypted?.maker && (!hasTakerDisclosure || !!decrypted?.taker);
 
@@ -440,7 +461,8 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
         <div className="rounded-lg border border-arc-border bg-arc-card p-4 text-xs leading-relaxed text-arc-muted">
           A complete matched-trade audit uses two keys: the maker key reveals
           the maker disclosure and the taker key reveals the taker disclosure.
-          Each party controls its own key.
+          Each party controls its own key. External auditors can import shared
+          audit-kit files without connecting a wallet.
         </div>
       </aside>
 
@@ -448,8 +470,9 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
         <div className="rounded-lg border border-arc-border bg-arc-card p-5">
           <h2 className="mb-1 text-sm font-medium text-white">Audit access</h2>
           <p className="mb-5 text-xs text-arc-muted">
-            Keys are checked against their onchain fingerprints and used only
-            in this browser.
+            Participant keys are authenticated against their onchain
+            fingerprints when available. Legacy taker keys are authenticated by
+            successful disclosure decryption. Keys are used only in this browser.
           </p>
 
           <div className="mb-4">
@@ -494,7 +517,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
             />
             {tradeId !== undefined &&
               nextTradeId !== undefined &&
-              !tradeExists && (
+              tradeIsKnownMissing && (
                 <p className="mt-1.5 text-xs text-danger">
                   Trade #{tradeId.toString()} does not exist.
                 </p>
@@ -514,7 +537,8 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
                   setDecrypted(null);
                   setDecryptErrors({});
                 }}
-                matches={makerKeyMatches}
+                authentication="onchain"
+                authenticated={makerKeyMatches}
                 disabled={false}
               />
               <KeyInput
@@ -525,7 +549,14 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
                   setDecrypted(null);
                   setDecryptErrors({});
                 }}
-                matches={takerKeyMatches}
+                authentication={
+                  takerUsesDecryptionAuthentication ? "decryption" : "onchain"
+                }
+                authenticated={
+                  takerUsesDecryptionAuthentication
+                    ? !!decrypted?.taker
+                    : takerKeyMatches
+                }
                 disabled={!hasTakerDisclosure}
               />
             </div>
@@ -537,11 +568,31 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
             disabled={!trade || !canReveal || isDecrypting}
             className="mt-5 w-full rounded-lg bg-umbra-purple py-2.5 text-sm font-medium text-white transition-colors hover:bg-umbra-violet disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isDecrypting ? "Decrypting..." : "Reveal verified disclosures"}
+            {isDecrypting ? "Decrypting..." : "Reveal authenticated disclosures"}
           </button>
         </div>
 
-        {isTradeLoading && tradeExists && (
+        {isTradeError && shouldLoadTrade && !trade && (
+          <div className="rounded-lg border border-danger/30 bg-danger/5 p-5">
+            <div className="mb-2 text-sm font-medium text-danger">
+              Trade #{tradeId?.toString()} could not be loaded
+            </div>
+            <p className="mb-4 text-xs leading-relaxed text-arc-muted">
+              {tradeError instanceof Error
+                ? tradeError.message
+                : "The contract returned data in an unsupported format."}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchTrade()}
+              className="rounded-md border border-arc-border px-3 py-1.5 text-xs text-white transition-colors hover:border-umbra-purple"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {isTradeLoading && shouldLoadTrade && !isTradeError && (
           <div className="rounded-lg border border-arc-border bg-arc-card p-5 text-sm text-arc-muted">
             Loading onchain trade record...
           </div>
@@ -590,7 +641,11 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
               <Fingerprint
                 label="Taker key fingerprint"
                 value={
-                  hasTakerDisclosure ? trade.takerViewKeyHash : "Not submitted"
+                  !hasTakerDisclosure
+                    ? "Not submitted"
+                    : trade.contractVersion === "legacy"
+                    ? "Not recorded by legacy contract; authenticated on decryption"
+                    : trade.takerViewKeyHash
                 }
               />
             </div>
@@ -662,7 +717,7 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
                 </div>
                 <p className="text-xs text-arc-muted">
                   {isComplete
-                    ? "Both available participant disclosures are verified."
+                    ? "Both available participant disclosures are authenticated."
                     : "Add the other participant key to complete this matched-trade audit."}
                 </p>
               </div>
@@ -679,13 +734,23 @@ export function AuditDecoder({ initialTradeId = "" }: AuditDecoderProps) {
               <DisclosurePanel
                 role="maker"
                 details={decrypted.maker}
-                keyVerified={makerKeyMatches}
+                authenticated={makerKeyMatches}
+                authenticationLabel="Onchain key verified"
               />
               {hasTakerDisclosure && (
                 <DisclosurePanel
                   role="taker"
                   details={decrypted.taker}
-                  keyVerified={takerKeyMatches}
+                  authenticated={
+                    takerUsesDecryptionAuthentication
+                      ? !!decrypted.taker
+                      : takerKeyMatches
+                  }
+                  authenticationLabel={
+                    takerUsesDecryptionAuthentication
+                      ? "Authenticated by decryption"
+                      : "Onchain key verified"
+                  }
                 />
               )}
             </div>
@@ -700,13 +765,15 @@ function KeyInput({
   role,
   value,
   onChange,
-  matches,
+  authentication,
+  authenticated,
   disabled,
 }: {
   role: Role;
   value: string;
   onChange: (value: string) => void;
-  matches: boolean;
+  authentication: "onchain" | "decryption";
+  authenticated: boolean;
   disabled: boolean;
 }) {
   const normalized = normalizeViewKey(value);
@@ -731,13 +798,21 @@ function KeyInput({
         <p
           className={cn(
             "mt-1.5 text-xs",
-            matches ? "text-settled" : "text-danger"
+            authenticated
+              ? "text-settled"
+              : authentication === "decryption" && normalized
+              ? "text-arc-muted"
+              : "text-danger"
           )}
         >
-          {matches
-            ? `${role === "maker" ? "Maker" : "Taker"} key verified`
+          {authenticated
+            ? authentication === "decryption"
+              ? `${roleLabel(role)} disclosure authenticated`
+              : `${roleLabel(role)} key verified`
             : normalized
-            ? `Key does not match the ${role} disclosure`
+            ? authentication === "decryption"
+              ? "Legacy key will be authenticated when decryption succeeds"
+              : `Key does not match the ${role} disclosure`
             : "Enter a 32-byte key beginning with 0x"}
         </p>
       )}
@@ -748,11 +823,13 @@ function KeyInput({
 function DisclosurePanel({
   role,
   details,
-  keyVerified,
+  authenticated,
+  authenticationLabel,
 }: {
   role: Role;
   details?: TradeDetails;
-  keyVerified: boolean;
+  authenticated: boolean;
+  authenticationLabel: string;
 }) {
   const roleLabel = role === "maker" ? "Maker" : "Taker";
 
@@ -763,10 +840,10 @@ function DisclosurePanel({
         <span
           className={cn(
             "text-[10px] uppercase",
-            details && keyVerified ? "text-settled" : "text-arc-muted"
+            details && authenticated ? "text-settled" : "text-arc-muted"
           )}
         >
-          {details && keyVerified ? "Verified" : "Not disclosed"}
+          {details && authenticated ? authenticationLabel : "Not disclosed"}
         </span>
       </div>
 
@@ -797,7 +874,7 @@ function DisclosurePanel({
         </div>
       ) : (
         <p className="text-xs leading-relaxed text-arc-muted">
-          This participant&apos;s verified key is required to reveal the
+          This participant&apos;s authenticated key is required to reveal the
           disclosure.
         </p>
       )}
@@ -849,4 +926,8 @@ function parseTradeId(value: string): bigint | undefined {
 
 function shortenHash(value: string): string {
   return `${value.slice(0, 10)}...${value.slice(-8)}`;
+}
+
+function roleLabel(role: Role): string {
+  return role === "maker" ? "Maker" : "Taker";
 }

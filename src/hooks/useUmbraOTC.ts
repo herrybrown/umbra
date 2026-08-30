@@ -7,16 +7,50 @@ import {
   useAccount,
   useSwitchChain,
   useConfig,
+  usePublicClient,
 } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
+import { useQuery } from "@tanstack/react-query";
 import type { Config } from "wagmi";
-import { toEventSelector } from "viem";
-import { UMBRA_OTC_ABI, UMBRA_OTC_ADDRESS, ERC20_ABI, USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
+import {
+  decodeFunctionResult,
+  encodeFunctionData,
+  toEventSelector,
+} from "viem";
+import {
+  UMBRA_OTC_ABI,
+  LEGACY_UMBRA_OTC_ABI,
+  UMBRA_OTC_ADDRESS,
+  ERC20_ABI,
+  USDC_ADDRESS,
+  EURC_ADDRESS,
+} from "@/lib/contracts";
 import { arcTestnet } from "@/lib/chains";
 
 const TRADE_CREATED_TOPIC = toEventSelector(
   "TradeCreated(uint256,address,uint8,uint64,string)"
 );
+const ZERO_BYTES32 =
+  "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+
+export type ContractVersion = "participant-keys" | "legacy";
+
+export interface UmbraTrade {
+  id: bigint;
+  maker: `0x${string}`;
+  taker: `0x${string}`;
+  pair: number;
+  status: number;
+  expiresAt: bigint;
+  createdAt: bigint;
+  bidCommitment: `0x${string}`;
+  makerEncrypted: `0x${string}`;
+  takerEncrypted: `0x${string}`;
+  makerViewKeyHash: `0x${string}`;
+  takerViewKeyHash: `0x${string}`;
+  rfqRef: string;
+  contractVersion: ContractVersion;
+}
 
 function useEnsureArcChain() {
   const { chainId } = useAccount();
@@ -84,14 +118,63 @@ export function useOpenIds() {
 }
 
 export function useTrade(id: bigint | undefined) {
-  return useReadContract({
-    address: UMBRA_OTC_ADDRESS,
-    abi: UMBRA_OTC_ABI,
-    functionName: "getTrade",
-    args: id !== undefined ? [id] : undefined,
-    query: {
-      enabled: id !== undefined,
-      refetchInterval: 4000,
+  const publicClient = usePublicClient({ chainId: arcTestnet.id });
+
+  return useQuery({
+    queryKey: ["umbra-trade", UMBRA_OTC_ADDRESS, id?.toString()],
+    enabled: id !== undefined && !!publicClient,
+    refetchInterval: 4000,
+    queryFn: async (): Promise<UmbraTrade> => {
+      if (id === undefined || !publicClient) {
+        throw new Error("Trade read is not ready.");
+      }
+
+      const callData = encodeFunctionData({
+        abi: UMBRA_OTC_ABI,
+        functionName: "getTrade",
+        args: [id],
+      });
+      const result = await publicClient.call({
+        to: UMBRA_OTC_ADDRESS,
+        data: callData,
+      });
+      if (!result.data) {
+        throw new Error("The contract returned no trade data.");
+      }
+
+      try {
+        const current = decodeFunctionResult({
+          abi: UMBRA_OTC_ABI,
+          functionName: "getTrade",
+          data: result.data,
+        });
+        return {
+          ...current,
+          contractVersion: "participant-keys",
+        };
+      } catch {
+        const legacy = decodeFunctionResult({
+          abi: LEGACY_UMBRA_OTC_ABI,
+          functionName: "getTrade",
+          data: result.data,
+        });
+        return {
+          id: legacy.id,
+          maker: legacy.maker,
+          taker: legacy.taker,
+          pair: legacy.pair,
+          status: legacy.status,
+          expiresAt: legacy.expiresAt,
+          createdAt: legacy.createdAt,
+          bidCommitment: legacy.bidCommitment,
+          makerEncrypted: legacy.makerEncrypted,
+          takerEncrypted: legacy.takerEncrypted,
+          makerViewKeyHash: legacy.viewKeyHash,
+          takerViewKeyHash: ZERO_BYTES32,
+          rfqRef: legacy.rfqRef,
+          contractVersion: "legacy",
+        };
+      }
     },
   });
 }
@@ -224,19 +307,32 @@ export function useMatchRFQ() {
     takerAmount: bigint;
     takerEncrypted: `0x${string}`;
     takerViewKeyHash: `0x${string}`;
+    contractVersion: ContractVersion;
   }) => {
     await ensureArc();
-    const hash = await writeContractAsync({
-      address: UMBRA_OTC_ADDRESS,
-      abi: UMBRA_OTC_ABI,
-      functionName: "matchRFQ",
-      args: [
-        args.id,
-        args.takerAmount,
-        args.takerEncrypted as `0x${string}`,
-        args.takerViewKeyHash,
-      ],
-    });
+    const hash =
+      args.contractVersion === "legacy"
+        ? await writeContractAsync({
+            address: UMBRA_OTC_ADDRESS,
+            abi: LEGACY_UMBRA_OTC_ABI,
+            functionName: "matchRFQ",
+            args: [
+              args.id,
+              args.takerAmount,
+              args.takerEncrypted as `0x${string}`,
+            ],
+          })
+        : await writeContractAsync({
+            address: UMBRA_OTC_ADDRESS,
+            abi: UMBRA_OTC_ABI,
+            functionName: "matchRFQ",
+            args: [
+              args.id,
+              args.takerAmount,
+              args.takerEncrypted as `0x${string}`,
+              args.takerViewKeyHash,
+            ],
+          });
     await awaitMined(config, hash);
     return hash;
   };

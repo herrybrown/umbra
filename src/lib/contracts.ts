@@ -199,6 +199,45 @@ export const UMBRA_OTC_ABI = [
   },
 ] as const;
 
+export const LEGACY_UMBRA_OTC_ABI = [
+  {
+    inputs: [{ type: "uint256", name: "id" }],
+    name: "getTrade",
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "id", type: "uint256" },
+          { name: "maker", type: "address" },
+          { name: "taker", type: "address" },
+          { name: "pair", type: "uint8" },
+          { name: "status", type: "uint8" },
+          { name: "expiresAt", type: "uint64" },
+          { name: "createdAt", type: "uint64" },
+          { name: "bidCommitment", type: "bytes32" },
+          { name: "makerEncrypted", type: "bytes" },
+          { name: "takerEncrypted", type: "bytes" },
+          { name: "viewKeyHash", type: "bytes32" },
+          { name: "rfqRef", type: "string" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "id", type: "uint256" },
+      { name: "takerAmount", type: "uint256" },
+      { name: "takerEncrypted", type: "bytes" },
+    ],
+    name: "matchRFQ",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
 export const ERC20_ABI = [
   {
     inputs: [{ name: "account", type: "address" }],

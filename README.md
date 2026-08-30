@@ -43,9 +43,9 @@ Every trade stores separate encrypted maker and taker disclosures: firm names, a
 
 To give your auditor access:
 
-1. Each participant shares their audit kit or **view key** with the auditor.
-2. The auditor opens **Audit**, selects or enters the trade ID, and enters the maker key, taker key, or both.
-3. Each key is checked against its onchain fingerprint before its disclosure is decrypted locally.
+1. Each participant opens their trade card and shares the trade-specific audit link and their audit-kit file with the auditor. The private key is stored in the kit, not in the URL.
+2. The auditor opens the link and imports the maker kit, taker kit, or both. An auditor does not need to connect a wallet.
+3. Current participant keys are checked against their onchain fingerprints before local decryption. For legacy trades, the contract stored only the maker fingerprint, so a taker key is authenticated by successful AES-GCM decryption.
 4. The auditor can download a JSON record containing the public trade metadata and every disclosure provided. Secret view keys are not included in that report.
 
 A single key produces a valid partial audit for that participant's side. A complete matched-trade audit requires both the maker and taker keys.

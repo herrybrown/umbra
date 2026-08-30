@@ -11,7 +11,12 @@ import {
   type SettlementKit,
 } from "@/lib/crypto";
 import { parseAmount, pairLabel, takerTokenLabel } from "@/lib/utils";
-import { useMatchRFQ, useApproveToken, useTokenAllowance } from "@/hooks/useUmbraOTC";
+import {
+  useMatchRFQ,
+  useApproveToken,
+  useTokenAllowance,
+  type ContractVersion,
+} from "@/hooks/useUmbraOTC";
 import { USDC_ADDRESS, EURC_ADDRESS } from "@/lib/contracts";
 
 interface Trade {
@@ -19,6 +24,7 @@ interface Trade {
   pair: number;
   rfqRef: string;
   maker: `0x${string}`;
+  contractVersion: ContractVersion;
 }
 
 interface Props {
@@ -76,6 +82,7 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
         takerAmount: parsedAmount,
         takerEncrypted: encrypted as `0x${string}`,
         takerViewKeyHash: viewKeyHash(viewKey),
+        contractVersion: trade.contractVersion,
       });
 
       const kit: SettlementKit = {

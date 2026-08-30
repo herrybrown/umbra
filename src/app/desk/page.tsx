@@ -297,9 +297,31 @@ function TradeCardLoader({
   onCancel?: () => void;
   onExpire?: () => Promise<void>;
 }) {
-  const { data: trade, isLoading, refetch } = useTrade(id);
+  const { data: trade, isLoading, isError, error, refetch } = useTrade(id);
 
   if (isLoading || !trade) {
+    if (isError) {
+      return (
+        <div className="rounded-xl border border-danger/30 bg-danger/5 p-5">
+          <div className="mb-2 text-sm font-medium text-danger">
+            Trade #{id.toString()} could not be loaded
+          </div>
+          <p className="mb-4 text-xs leading-relaxed text-arc-muted">
+            {error instanceof Error
+              ? error.message
+              : "The contract returned data in an unsupported format."}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-md border border-arc-border px-3 py-1.5 text-xs text-white transition-colors hover:border-umbra-purple"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-xl border border-arc-border bg-arc-card p-5 animate-pulse">
         <div className="h-4 bg-arc-border rounded w-1/3 mb-3" />

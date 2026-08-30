@@ -15,10 +15,13 @@ import {
   cn,
 } from "@/lib/utils";
 import {
+  auditUrlForTrade,
+  createSettlementKitFile,
   downloadSettlementKit,
   loadKit,
   type SettlementKit,
 } from "@/lib/crypto";
+import type { ContractVersion } from "@/hooks/useUmbraOTC";
 
 interface Trade {
   id: bigint;
@@ -30,6 +33,7 @@ interface Trade {
   createdAt: bigint;
   bidCommitment: `0x${string}`;
   rfqRef: string;
+  contractVersion: ContractVersion;
 }
 
 interface Props {
@@ -289,12 +293,40 @@ function AuditAccessPanel({
   tradeId: bigint;
   kit: SettlementKit;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [shareStatus, setShareStatus] = useState<
+    "idle" | "shared" | "downloaded" | "error"
+  >("idle");
 
-  async function copyKey() {
-    await navigator.clipboard.writeText(kit.viewKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  async function copyAuditLink() {
+    await navigator.clipboard.writeText(auditUrlForTrade(tradeId));
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 1500);
+  }
+
+  async function shareAuditAccess() {
+    setShareStatus("idle");
+    const auditUrl = auditUrlForTrade(tradeId);
+    const file = createSettlementKitFile(kit);
+
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `Umbra trade #${tradeId.toString()} audit access`,
+          text: `Import this ${kit.role} audit kit to review trade #${tradeId.toString()}.`,
+          url: auditUrl,
+          files: [file],
+        });
+        setShareStatus("shared");
+      } else {
+        downloadSettlementKit(kit);
+        setShareStatus("downloaded");
+      }
+      setTimeout(() => setShareStatus("idle"), 2500);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareStatus("error");
+    }
   }
 
   return (
@@ -313,22 +345,39 @@ function AuditAccessPanel({
           Open audit
         </Link>
       </div>
-      <div className="flex gap-2">
+      <p className="mb-3 text-[11px] leading-relaxed text-arc-muted">
+        Send the trade link and this participant&apos;s private audit kit to an
+        authorized auditor. The secret is never placed in the URL.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={copyKey}
-          className="flex-1 rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+          onClick={copyAuditLink}
+          className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
         >
-          {copied ? "Key copied" : "Copy key"}
+          {copiedLink ? "Link copied" : "Copy audit link"}
         </button>
         <button
           type="button"
-          onClick={() => downloadSettlementKit(kit)}
-          className="flex-1 rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+          onClick={shareAuditAccess}
+          className="rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
         >
-          Download kit
+          {shareStatus === "shared"
+            ? "Shared"
+            : shareStatus === "downloaded"
+            ? "Kit downloaded"
+            : shareStatus === "error"
+            ? "Share failed"
+            : "Share audit access"}
         </button>
       </div>
+      <button
+        type="button"
+        onClick={() => downloadSettlementKit(kit)}
+        className="mt-2 w-full rounded-md border border-arc-border px-2 py-1.5 text-xs text-arc-muted transition-colors hover:text-white"
+      >
+        Download audit kit
+      </button>
     </div>
   );
 }
