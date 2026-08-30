@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/Navbar";
+import { WormholeBackground } from "@/components/WormholeBackground";
 
 export const metadata: Metadata = {
   title: "Umbra",
@@ -19,7 +20,8 @@ export default function RootLayout({
       <body>
         <Providers>
           <Navbar />
-          <main className="pt-16 min-h-screen bg-arc-dark">{children}</main>
+          <WormholeBackground />
+          <main className="relative z-10 min-h-screen pt-16">{children}</main>
         </Providers>
       </body>
     </html>

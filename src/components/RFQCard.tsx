@@ -223,7 +223,7 @@ export function RFQCard({
         {isOpen && !isMaker && onMatch && (
           <button
             onClick={onMatch}
-            className="flex-1 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-white"
+            className="umbra-action flex-1 py-2 rounded-lg bg-umbra-purple hover:bg-umbra-violet transition-colors text-sm font-medium text-white"
           >
             Take Quote
           </button>
@@ -231,7 +231,7 @@ export function RFQCard({
         {isMatched && isMaker && onSettle && (
           <button
             onClick={onSettle}
-            className="flex-1 py-2 rounded-lg bg-settled/20 hover:bg-settled/30 border border-settled/30 transition-colors text-sm font-medium text-settled"
+            className="umbra-action flex-1 py-2 rounded-lg bg-settled/20 hover:bg-settled/30 border border-settled/30 transition-colors text-sm font-medium text-settled"
           >
             Settle Trade
           </button>
@@ -254,7 +254,7 @@ export function RFQCard({
             type="button"
             onClick={handleExpire}
             disabled={isFinalizingExpiry}
-            className="flex-1 rounded-lg border border-danger/30 bg-danger/10 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="umbra-action flex-1 rounded-lg border border-danger/30 bg-danger/10 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isFinalizingExpiry ? "Finalizing..." : "Finalize Expiry"}
           </button>

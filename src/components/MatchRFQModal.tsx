@@ -190,7 +190,7 @@ export function MatchRFQModal({ trade, onClose, onSuccess }: Props) {
         <button
           type="submit"
           disabled={step !== "idle" || !parsedAmount}
-          className="w-full py-2.5 rounded-lg bg-umbra-purple hover:bg-umbra-violet disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white font-medium text-sm"
+          className="umbra-action w-full py-2.5 rounded-lg bg-umbra-purple hover:bg-umbra-violet disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white font-medium text-sm"
         >
           {step === "approving"
             ? "Approving… (confirm in wallet)"

@@ -31,13 +31,13 @@ export default function Home() {
         <div className="flex items-center justify-center gap-4">
           <Link
             href="/desk"
-            className="px-6 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium text-sm"
+            className="umbra-action px-6 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium text-sm"
           >
             Open Trading Desk
           </Link>
           <Link
             href="/audit"
-            className="px-6 py-3 rounded-xl border border-arc-border hover:border-arc-border/80 text-arc-muted hover:text-white transition-colors text-sm"
+            className="umbra-action px-6 py-3 rounded-xl border border-arc-border hover:border-arc-border/80 text-arc-muted hover:text-white transition-colors text-sm"
           >
             Auditor Access
           </Link>
@@ -181,7 +181,7 @@ export default function Home() {
         <div className="flex items-center justify-center gap-3">
           <Link
             href="/desk"
-            className="inline-flex px-8 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium"
+            className="umbra-action inline-flex px-8 py-3 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white font-medium"
           >
             Open Trading Desk
           </Link>
@@ -189,7 +189,7 @@ export default function Home() {
             href="https://faucet.circle.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex px-6 py-3 rounded-xl border border-arc-border hover:border-arc-border/80 text-arc-muted hover:text-white transition-colors text-sm"
+            className="umbra-action inline-flex px-6 py-3 rounded-xl border border-arc-border hover:border-arc-border/80 text-arc-muted hover:text-white transition-colors text-sm"
           >
             Get test tokens
           </a>

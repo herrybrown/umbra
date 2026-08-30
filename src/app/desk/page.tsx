@@ -53,7 +53,7 @@ export default function DeskPage() {
         {isConnected && (
           <button
             onClick={() => setShowCreate(true)}
-            className="px-5 py-2.5 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white text-sm font-medium"
+            className="umbra-action px-5 py-2.5 rounded-xl bg-umbra-purple hover:bg-umbra-violet transition-colors text-white text-sm font-medium"
           >
             + New Quote
           </button>

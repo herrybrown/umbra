@@ -96,7 +96,7 @@ export function SettleModal({ trade, onClose, onSuccess }: Props) {
       <button
         onClick={handleSettle}
         disabled={step !== "idle"}
-        className="w-full py-2.5 rounded-lg bg-settled/20 hover:bg-settled/30 border border-settled/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-settled font-medium text-sm"
+        className="umbra-action w-full py-2.5 rounded-lg bg-settled/20 hover:bg-settled/30 border border-settled/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-settled font-medium text-sm"
       >
         {step === "settling" || isConfirming
           ? "Settling… (confirm in wallet)"

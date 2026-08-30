@@ -19,6 +19,183 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Fixed, compositor-only background inspired by the Umbra crescent. */
+.umbra-wormhole {
+  position: fixed;
+  inset: 4rem 0 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.umbra-wormhole__tunnel {
+  position: absolute;
+  top: 42%;
+  left: 79%;
+  width: min(74vw, 68rem);
+  aspect-ratio: 1;
+  transform: translate3d(-50%, -50%, 0) rotate(-11deg) scaleX(1.18);
+  transform-origin: center;
+  opacity: 0.72;
+  contain: layout paint style;
+}
+
+.umbra-wormhole__ring {
+  position: absolute;
+  inset: 18%;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  border-right-color: rgba(221, 214, 254, 0.68);
+  border-bottom-color: rgba(79, 70, 229, 0.08);
+  border-left-color: transparent;
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.05) rotate(0deg);
+  will-change: transform, opacity;
+  animation: umbra-wormhole-travel 9.2s linear infinite;
+}
+
+.umbra-wormhole__ring:nth-child(2n) {
+  border-top-color: rgba(124, 58, 237, 0.12);
+  border-right-color: rgba(167, 139, 250, 0.5);
+  animation-duration: 10.4s;
+}
+
+.umbra-wormhole__ring:nth-child(3n) {
+  border-width: 2px 1px 1px;
+  border-top-color: rgba(61, 154, 96, 0.2);
+  animation-duration: 11.6s;
+}
+
+.umbra-wormhole__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(124, 58, 237, 0.65);
+  border-right-color: rgba(221, 214, 254, 0.9);
+  border-left-color: transparent;
+  border-radius: 50%;
+  background: #070810;
+  transform: translate3d(-50%, -50%, 0);
+  will-change: transform, opacity;
+  animation: umbra-core-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes umbra-wormhole-travel {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.05) rotate(0deg);
+  }
+  12% {
+    opacity: 0.82;
+  }
+  68% {
+    opacity: 0.28;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1.72) rotate(155deg);
+  }
+}
+
+@keyframes umbra-core-breathe {
+  0%, 100% {
+    opacity: 0.7;
+    transform: translate3d(-50%, -50%, 0) scale(0.92) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) scale(1.08) rotate(18deg);
+  }
+}
+
+/* Primary actions get a short press and expanding click wave. */
+.umbra-action {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transform: translate3d(0, 0, 0);
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.umbra-action::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.5rem;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(-50%, -50%, 0) scale(0.2);
+}
+
+.umbra-action:active:not(:disabled) {
+  transform: translate3d(0, 1px, 0) scale(0.97);
+}
+
+.umbra-action:active:not(:disabled)::after {
+  animation: umbra-click-wave 440ms ease-out;
+}
+
+button:not(:disabled) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):active {
+  transform: translate3d(0, 1px, 0) scale(0.98);
+}
+
+@keyframes umbra-click-wave {
+  0% {
+    opacity: 0.75;
+    transform: translate3d(-50%, -50%, 0) scale(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(8);
+  }
+}
+
+@media (max-width: 768px) {
+  .umbra-wormhole__tunnel {
+    top: 30%;
+    left: 68%;
+    width: 120vw;
+    opacity: 0.38;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .umbra-wormhole__ring,
+  .umbra-wormhole__core,
+  .umbra-action:active:not(:disabled)::after {
+    animation: none;
+  }
+
+  .umbra-wormhole__ring {
+    opacity: 0.08;
+    transform: translate3d(0, 0, 0) scale(1.2);
+  }
+
+  .umbra-wormhole__ring:nth-child(n + 3) {
+    display: none;
+  }
+
+  .umbra-action,
+  button:not(:disabled) {
+    transition: none;
+  }
 }
 
 /* Scrollbar */
