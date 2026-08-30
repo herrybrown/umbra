@@ -14,6 +14,7 @@ import {
   useUsdcBalance,
   useEurcBalance,
   useCancel,
+  useMarkExpired,
 } from "@/hooks/useUmbraOTC";
 import { formatAmount } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export default function DeskPage() {
   const { data: usdcBalance } = useUsdcBalance(address);
   const { data: eurcBalance } = useEurcBalance(address);
   const { cancel } = useCancel();
+  const { markExpired } = useMarkExpired();
 
   const myIds = Array.from(
     new Set([...(makerIds as bigint[]), ...(takerIds as bigint[])])
@@ -128,6 +130,10 @@ export default function DeskPage() {
             refetchOpen();
           }}
           onSettle={setSettleTradeId}
+          onExpire={async (id) => {
+            await markExpired(id);
+            await refetchOpen();
+          }}
         />
       ) : (
         <MyTradesTab
@@ -135,6 +141,10 @@ export default function DeskPage() {
           onSettle={setSettleTradeId}
           onCancel={async (id) => {
             await cancel(id);
+          }}
+          onExpire={async (id) => {
+            await markExpired(id);
+            await refetchOpen();
           }}
         />
       )}
@@ -204,11 +214,13 @@ function MarketTab({
   onMatch,
   onCancel,
   onSettle,
+  onExpire,
 }: {
   openIds: bigint[];
   onMatch: (id: bigint) => void;
   onCancel: (id: bigint) => void;
   onSettle: (id: bigint) => void;
+  onExpire: (id: bigint) => Promise<void>;
 }) {
   if (openIds.length === 0) {
     return (
@@ -231,6 +243,7 @@ function MarketTab({
           onMatch={() => onMatch(id)}
           onCancel={() => onCancel(id)}
           onSettle={() => onSettle(id)}
+          onExpire={() => onExpire(id)}
         />
       ))}
     </div>
@@ -241,10 +254,12 @@ function MyTradesTab({
   ids,
   onSettle,
   onCancel,
+  onExpire,
 }: {
   ids: bigint[];
   onSettle: (id: bigint) => void;
   onCancel: (id: bigint) => void;
+  onExpire: (id: bigint) => Promise<void>;
 }) {
   if (ids.length === 0) {
     return (
@@ -262,6 +277,7 @@ function MyTradesTab({
           id={id}
           onSettle={() => onSettle(id)}
           onCancel={() => onCancel(id)}
+          onExpire={() => onExpire(id)}
         />
       ))}
     </div>
@@ -273,13 +289,15 @@ function TradeCardLoader({
   onMatch,
   onSettle,
   onCancel,
+  onExpire,
 }: {
   id: bigint;
   onMatch?: () => void;
   onSettle?: () => void;
   onCancel?: () => void;
+  onExpire?: () => Promise<void>;
 }) {
-  const { data: trade, isLoading } = useTrade(id);
+  const { data: trade, isLoading, refetch } = useTrade(id);
 
   if (isLoading || !trade) {
     return (
@@ -297,6 +315,14 @@ function TradeCardLoader({
       onMatch={onMatch}
       onSettle={onSettle}
       onCancel={onCancel}
+      onExpire={
+        onExpire
+          ? async () => {
+              await onExpire();
+              await refetch();
+            }
+          : undefined
+      }
     />
   );
 }

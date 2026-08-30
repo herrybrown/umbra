@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import {
@@ -37,22 +37,72 @@ interface Props {
   onMatch?: () => void;
   onSettle?: () => void;
   onCancel?: () => void;
+  onExpire?: () => Promise<void>;
 }
 
 const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
+export function RFQCard({
+  trade,
+  onMatch,
+  onSettle,
+  onCancel,
+  onExpire,
+}: Props) {
   const { address } = useAccount();
+  const [now, setNow] = useState<number | null>(null);
+  const [isFinalizingExpiry, setIsFinalizingExpiry] = useState(false);
+  const [expiryError, setExpiryError] = useState("");
   const isMaker = address?.toLowerCase() === trade.maker.toLowerCase();
   const isTaker = address?.toLowerCase() === trade.taker.toLowerCase();
-  const isOpen = trade.status === 0;
-  const isMatched = trade.status === 1;
-  const isSettled = trade.status === 2;
-  const isActive = isOpen || isMatched;
-  const hasBidCriteria = trade.bidCommitment !== ZERO_BYTES32;
+  const isOpenOnchain = trade.status === 0;
+  const isMatchedOnchain = trade.status === 1;
   const expiresAt = Number(trade.expiresAt);
+  const hasPassedExpiry =
+    now !== null &&
+    now >= expiresAt &&
+    (isOpenOnchain || isMatchedOnchain);
+  const isAwaitingClock =
+    now === null && (isOpenOnchain || isMatchedOnchain);
+  const isOpen = isOpenOnchain && now !== null && !hasPassedExpiry;
+  const isMatched = isMatchedOnchain && now !== null && !hasPassedExpiry;
+  const isSettled = trade.status === 2;
+  const isCancelled = trade.status === 3;
+  const isExpired = trade.status === 4 || hasPassedExpiry;
+  const isActive = isOpen || isMatched;
+  const displayStatus = hasPassedExpiry ? 4 : trade.status;
+  const hasBidCriteria = trade.bidCommitment !== ZERO_BYTES32;
+  const hasTaker = trade.taker !== ZERO_ADDRESS;
   const participantRole = isMaker ? "maker" : isTaker ? "taker" : null;
   const auditKit = participantRole ? loadKit(Number(trade.id), participantRole) : null;
+
+  useEffect(() => {
+    setNow(Math.floor(Date.now() / 1000));
+    const interval = window.setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  async function handleExpire() {
+    if (!onExpire || isFinalizingExpiry) return;
+    setExpiryError("");
+    setIsFinalizingExpiry(true);
+    try {
+      await onExpire();
+    } catch (error) {
+      const message =
+        error && typeof error === "object" && "shortMessage" in error
+          ? String(error.shortMessage)
+          : error instanceof Error
+          ? error.message
+          : "Could not finalize the expired trade.";
+      setExpiryError(message);
+    } finally {
+      setIsFinalizingExpiry(false);
+    }
+  }
 
   return (
     <div
@@ -81,10 +131,10 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             <span
               className={cn(
                 "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                statusColor(trade.status)
+                statusColor(displayStatus)
               )}
             >
-              {statusLabel(trade.status)}
+              {statusLabel(displayStatus)}
             </span>
             {hasBidCriteria && isOpen && (
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-matched/30 text-matched bg-matched/10">
@@ -124,8 +174,10 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
           <div className="text-xs text-arc-muted mb-1.5">
             Taker sends ({takerTokenLabel(trade.pair)})
           </div>
-          {isOpen ? (
-            <span className="text-xs text-arc-muted font-mono">Awaiting taker</span>
+          {!hasTaker ? (
+            <span className="text-xs text-arc-muted font-mono">
+              {isExpired ? "No taker" : "Awaiting taker"}
+            </span>
           ) : (
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-umbra-purple" />
@@ -142,7 +194,7 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
           <span className="font-mono text-white">{shortenAddress(trade.maker)}</span>
           {isMaker && <span className="ml-1 text-umbra-glow">(you)</span>}
         </div>
-        {trade.taker !== "0x0000000000000000000000000000000000000000" && (
+        {hasTaker && (
           <div>
             <span>Taker: </span>
             <span className="font-mono text-white">{shortenAddress(trade.taker)}</span>
@@ -156,6 +208,11 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
 
       {/* Actions */}
       <div className="flex gap-2">
+        {isAwaitingClock && (
+          <div className="flex-1 py-2 text-center text-xs text-arc-muted">
+            Checking expiry...
+          </div>
+        )}
         {isOpen && !isMaker && onMatch && (
           <button
             onClick={onMatch}
@@ -185,12 +242,38 @@ export function RFQCard({ trade, onMatch, onSettle, onCancel }: Props) {
             Tokens locked — waiting for maker to settle
           </div>
         )}
-        {!isActive && (
+        {hasPassedExpiry && onExpire && (
+          <button
+            type="button"
+            onClick={handleExpire}
+            disabled={isFinalizingExpiry}
+            className="flex-1 rounded-lg border border-danger/30 bg-danger/10 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isFinalizingExpiry ? "Finalizing..." : "Finalize Expiry"}
+          </button>
+        )}
+        {!isActive &&
+          !isAwaitingClock &&
+          !(hasPassedExpiry && onExpire) && (
           <div className="flex-1 text-center text-xs text-arc-muted py-2">
-            {isSettled ? "Trade settled" : "No further action"}
+            {isSettled
+              ? "Trade settled"
+              : isCancelled
+              ? "Trade cancelled"
+              : isExpired && !hasPassedExpiry
+              ? "Trade expired"
+              : !onExpire && isExpired
+              ? "Trade expired"
+              : "No further action"}
           </div>
         )}
       </div>
+
+      {expiryError && (
+        <div className="mt-3 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
+          {expiryError}
+        </div>
+      )}
 
       {participantRole && auditKit && (
         <AuditAccessPanel tradeId={trade.id} kit={auditKit} />

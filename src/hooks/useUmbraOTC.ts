@@ -286,6 +286,27 @@ export function useCancel() {
   return { cancel, isPending, isConfirming, isSuccess, error, hash: data };
 }
 
+export function useMarkExpired() {
+  const ensureArc = useEnsureArcChain();
+  const config = useConfig();
+  const { writeContractAsync, isPending, error, data } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: data });
+
+  const markExpired = async (id: bigint) => {
+    await ensureArc();
+    const hash = await writeContractAsync({
+      address: UMBRA_OTC_ADDRESS,
+      abi: UMBRA_OTC_ABI,
+      functionName: "markExpired",
+      args: [id],
+    });
+    await awaitMined(config, hash);
+    return hash;
+  };
+
+  return { markExpired, isPending, isConfirming, isSuccess, error, hash: data };
+}
+
 export function useApproveToken() {
   const ensureArc = useEnsureArcChain();
   const config = useConfig();
